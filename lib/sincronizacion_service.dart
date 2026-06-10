@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:hive/hive.dart';
@@ -19,8 +18,6 @@ class SincronizacionService {
   String? _gasToken;
 
   void iniciarEscucha() async {
-    await Hive.box('equipos_pendientes').clear();
-
     Connectivity().onConnectivityChanged.listen((List<ConnectivityResult> results) {
       if (results.contains(ConnectivityResult.mobile) || results.contains(ConnectivityResult.wifi)) {
         sincronizarDatos();
@@ -50,23 +47,33 @@ class SincronizacionService {
     }
   }
 
-  Future<void> _modificarContadoresArea(String areaProceso, int incremento) async {
-    final docRef = FirebaseFirestore.instance.collection('metricas').doc('conteos_areas');
-    final partes = areaProceso.split(' / ');
-    final Map<String, dynamic> actualizaciones = {};
+  Future<void> _modificarContadoresArea(String? areaProceso, int incremento) async {
+    if (areaProceso == null || areaProceso.trim().isEmpty) return;
     
-    String rutaAcumulada = '';
-    for (int i = 0; i < partes.length; i++) {
-      if (i == 0) {
-        rutaAcumulada = partes[i].trim();
-      } else {
-        rutaAcumulada += ' / ${partes[i].trim()}';
+    try {
+      final docRef = FirebaseFirestore.instance.collection('metricas').doc('conteos_areas');
+      final partes = areaProceso.split(' / ');
+      final Map<String, dynamic> actualizaciones = {};
+      
+      String rutaAcumulada = '';
+      for (int i = 0; i < partes.length; i++) {
+        if (partes[i].trim().isEmpty) continue;
+        if (i == 0) {
+          rutaAcumulada = partes[i].trim();
+        } else {
+          rutaAcumulada += ' / ${partes[i].trim()}';
+        }
+        String safeKey = rutaAcumulada.replaceAll('/', '-').replaceAll('.', '-');
+        if (safeKey.isNotEmpty) {
+          actualizaciones[safeKey] = FieldValue.increment(incremento);
+        }
       }
-      actualizaciones[rutaAcumulada] = FieldValue.increment(incremento);
-    }
-    
-    if (actualizaciones.isNotEmpty) {
-      await docRef.set(actualizaciones, SetOptions(merge: true));
+      
+      if (actualizaciones.isNotEmpty) {
+        await docRef.set(actualizaciones, SetOptions(merge: true));
+      }
+    } catch (e) {
+      debugPrint(e.toString());
     }
   }
 
@@ -91,8 +98,10 @@ class SincronizacionService {
           datos['fotoPlacaUrl'] = urlPlaca;
           
           if (urlAntiguaPlaca != null && urlAntiguaPlaca.isNotEmpty) {
-            await eliminarImagenDrive(urlAntiguaPlaca);
-            await ImageCacheManager.eliminarImagen(urlAntiguaPlaca);
+            try {
+              await eliminarImagenDrive(urlAntiguaPlaca);
+              await ImageCacheManager.eliminarImagen(urlAntiguaPlaca);
+            } catch (_) {}
           }
         } else {
           return false;
@@ -108,8 +117,10 @@ class SincronizacionService {
           datos['fotoGeneralUrl'] = urlGeneral;
           
           if (urlAntiguaGeneral != null && urlAntiguaGeneral.isNotEmpty) {
-            await eliminarImagenDrive(urlAntiguaGeneral);
-            await ImageCacheManager.eliminarImagen(urlAntiguaGeneral);
+            try {
+              await eliminarImagenDrive(urlAntiguaGeneral);
+              await ImageCacheManager.eliminarImagen(urlAntiguaGeneral);
+            } catch (_) {}
           }
         } else {
           return false;
@@ -140,26 +151,26 @@ class SincronizacionService {
 
       final String? idLevantamiento = copiaParaFirestore['id_levantamiento'];
 
+      if (idLevantamiento == null) return false;
+
       String? areaAntigua;
-      if (esEdicion && idLevantamiento != null) {
-        final docSnap = await FirebaseFirestore.instance.collection('equipos').doc(idLevantamiento).get();
-        if (docSnap.exists) {
-          areaAntigua = docSnap.data()?['areaProceso']?.toString();
-        }
+      if (esEdicion) {
+        try {
+          final docSnap = await FirebaseFirestore.instance.collection('equipos').doc(idLevantamiento).get();
+          if (docSnap.exists) {
+            areaAntigua = docSnap.data()?['areaProceso']?.toString();
+          }
+        } catch (_) {}
       }
 
       if (esEdicion && areaAntigua != null && areaAntigua != copiaParaFirestore['areaProceso']) {
         await _modificarContadoresArea(areaAntigua, -1);
-        await _modificarContadoresArea(copiaParaFirestore['areaProceso'].toString(), 1);
+        await _modificarContadoresArea(copiaParaFirestore['areaProceso']?.toString(), 1);
       } else if (!esEdicion) {
-        await _modificarContadoresArea(copiaParaFirestore['areaProceso'].toString(), 1);
+        await _modificarContadoresArea(copiaParaFirestore['areaProceso']?.toString(), 1);
       }
 
-      if (idLevantamiento != null) {
-        await FirebaseFirestore.instance.collection('equipos').doc(idLevantamiento).set(copiaParaFirestore, SetOptions(merge: true));
-      } else {
-        await FirebaseFirestore.instance.collection('equipos').add(copiaParaFirestore);
-      }
+      await FirebaseFirestore.instance.collection('equipos').doc(idLevantamiento).set(copiaParaFirestore, SetOptions(merge: true));
 
       return true;
     } catch (e) {
@@ -195,90 +206,94 @@ class SincronizacionService {
         if (datos['fotoPlacaBase64'] != null) {
           final String? urlAntiguaPlaca = urlPlaca;
           urlPlaca = await _subirADrive(datos['fotoPlacaBase64'], 'PLACA_${datos['codigo']}');
-          datos.remove('fotoPlacaBase64');
           
           if (urlPlaca != null) {
+            datos.remove('fotoPlacaBase64');
             datos['fotoPlacaUrl'] = urlPlaca;
             if (urlAntiguaPlaca != null && urlAntiguaPlaca.isNotEmpty) {
-              await eliminarImagenDrive(urlAntiguaPlaca);
-              await ImageCacheManager.eliminarImagen(urlAntiguaPlaca);
+              try {
+                await eliminarImagenDrive(urlAntiguaPlaca);
+                await ImageCacheManager.eliminarImagen(urlAntiguaPlaca);
+              } catch (_) {}
             }
+            actualizarHive = true;
+          } else {
+            continue;
           }
-          actualizarHive = true;
         }
 
         if (datos['fotoGeneralBase64'] != null) {
           final String? urlAntiguaGeneral = urlGeneral;
           urlGeneral = await _subirADrive(datos['fotoGeneralBase64'], 'GENERAL_${datos['codigo']}');
-          datos.remove('fotoGeneralBase64');
           
           if (urlGeneral != null) {
+            datos.remove('fotoGeneralBase64');
             datos['fotoGeneralUrl'] = urlGeneral;
             if (urlAntiguaGeneral != null && urlAntiguaGeneral.isNotEmpty) {
-              await eliminarImagenDrive(urlAntiguaGeneral);
-              await ImageCacheManager.eliminarImagen(urlAntiguaGeneral);
+              try {
+                await eliminarImagenDrive(urlAntiguaGeneral);
+                await ImageCacheManager.eliminarImagen(urlAntiguaGeneral);
+              } catch (_) {}
             }
+            actualizarHive = true;
+          } else {
+            continue;
           }
-          actualizarHive = true;
         }
 
         if (actualizarHive) {
           await _pendientes.put(key, datos);
         }
 
-        datos.removeWhere((k, v) => v == null);
+        final copiaParaFirestore = Map<String, dynamic>.from(datos);
+        copiaParaFirestore.removeWhere((k, v) => v == null);
 
-        if (datos['fechaVerificacion'] != null) {
-          datos['fechaVerificacion'] = Timestamp.fromDate(DateTime.parse(datos['fechaVerificacion'].toString()));
+        if (copiaParaFirestore['fechaVerificacion'] != null) {
+          copiaParaFirestore['fechaVerificacion'] = Timestamp.fromDate(DateTime.parse(copiaParaFirestore['fechaVerificacion'].toString()));
         }
 
-        datos['uid_creador'] = usuario.uid;
-        datos['email_creador'] = usuario.email;
-        datos['nombre_creador'] = usuario.displayName;
+        copiaParaFirestore['uid_creador'] = usuario.uid;
+        copiaParaFirestore['email_creador'] = usuario.email;
+        copiaParaFirestore['nombre_creador'] = usuario.displayName;
 
-        final bool esEdicion = datos['es_edicion'] ?? false;
-        datos.remove('es_edicion');
+        final bool esEdicion = copiaParaFirestore['es_edicion'] ?? false;
+        copiaParaFirestore.remove('es_edicion');
 
-        datos['ultimaModificacion'] = FieldValue.serverTimestamp();
+        copiaParaFirestore['ultimaModificacion'] = FieldValue.serverTimestamp();
 
         if (!esEdicion) {
-          datos['sincronizadoEn'] = FieldValue.serverTimestamp();
+          copiaParaFirestore['sincronizadoEn'] = FieldValue.serverTimestamp();
         }
 
-        datos['codigo_minuscula'] = datos['codigo'].toString().toLowerCase();
+        copiaParaFirestore['codigo_minuscula'] = copiaParaFirestore['codigo'].toString().toLowerCase();
 
-        final String? idLevantamiento = datos['id_levantamiento'];
+        final String? idLevantamiento = copiaParaFirestore['id_levantamiento'];
+        
+        if (idLevantamiento == null) continue;
 
         String? areaAntigua;
-        if (esEdicion && idLevantamiento != null) {
-          final docSnap = await FirebaseFirestore.instance.collection('equipos').doc(idLevantamiento).get();
-          if (docSnap.exists) {
-            areaAntigua = docSnap.data()?['areaProceso']?.toString();
-          }
+        if (esEdicion) {
+          try {
+            final docSnap = await FirebaseFirestore.instance.collection('equipos').doc(idLevantamiento).get();
+            if (docSnap.exists) {
+              areaAntigua = docSnap.data()?['areaProceso']?.toString();
+            }
+          } catch (_) {}
         }
 
-        if (esEdicion && areaAntigua != null && areaAntigua != datos['areaProceso']) {
+        if (esEdicion && areaAntigua != null && areaAntigua != copiaParaFirestore['areaProceso']) {
           await _modificarContadoresArea(areaAntigua, -1);
-          await _modificarContadoresArea(datos['areaProceso'].toString(), 1);
+          await _modificarContadoresArea(copiaParaFirestore['areaProceso']?.toString(), 1);
         } else if (!esEdicion) {
-          await _modificarContadoresArea(datos['areaProceso'].toString(), 1);
+          await _modificarContadoresArea(copiaParaFirestore['areaProceso']?.toString(), 1);
         }
 
-        if (idLevantamiento != null) {
-          await FirebaseFirestore.instance.collection('equipos').doc(idLevantamiento).set(datos, SetOptions(merge: true));
-        } else {
-          await FirebaseFirestore.instance.collection('equipos').add(datos);
-        }
-
+        await FirebaseFirestore.instance.collection('equipos').doc(idLevantamiento).set(copiaParaFirestore, SetOptions(merge: true));
         await _pendientes.delete(key);
-
         await Future.delayed(const Duration(seconds: 3));
       }
     } catch (e) {
       debugPrint(e.toString());
-      if (keys.isNotEmpty) {
-        await _pendientes.delete(keys.first);
-      }
     } finally {
       _sincronizando = false;
     }
@@ -289,54 +304,40 @@ class SincronizacionService {
     final nombreArchivo = '${prefijo}_${DateTime.now().millisecondsSinceEpoch}.jpg';
 
     try {
-      debugPrint('Subida Rastreo 1: Iniciando intento $intentos para $nombreArchivo');
-      debugPrint('Subida Rastreo 2: Longitud base64 a enviar: ${base64Str.length}');
-
       final bodyData = jsonEncode({
         'security_token': _gasToken, 
         'filename': nombreArchivo,
         'image': base64Str,
       });
 
-      debugPrint('Subida Rastreo 3: jsonEncode completado, ejecutando http.post');
-
       final respuesta = await http.post(
         url,
         headers: {'Content-Type': 'text/plain'},
         body: bodyData,
       );
-
-      debugPrint('Subida Rastreo 4: http.post finalizado con status ${respuesta.statusCode}');
       
       final bodyText = respuesta.body.trim();
-      debugPrint('Subida Rastreo 5: Respuesta body length: ${bodyText.length}');
 
       if (bodyText.toLowerCase().startsWith('<') || bodyText.toLowerCase().contains('<!doctype html>')) {
-         debugPrint('Subida Rastreo 6: ERROR FATAL - Google devolvió HTML');
          return null;
       }
 
       if (respuesta.statusCode == 200) {
-        debugPrint('Subida Rastreo 7: Parseando JSON de respuesta');
         final rDatos = jsonDecode(bodyText);
         
         if (rDatos['success'] == true) {
-          debugPrint('Subida Rastreo 8: Subida exitosa, fileId: ${rDatos['fileId']}');
           return rDatos['fileId'];
         } else if (rDatos.containsKey('error')) {
-          debugPrint('Subida Rastreo 9: Error devuelto por el script: ${rDatos['error']}');
           if (intentos < 3) {
             await Future.delayed(Duration(seconds: 2 * (intentos + 1)));
             return await _subirADrive(base64Str, prefijo, intentos: intentos + 1);
           }
         }
       } else if ((respuesta.statusCode == 429 || respuesta.statusCode == 500) && intentos < 3) {
-        debugPrint('Subida Rastreo 10: Status ${respuesta.statusCode}, reintentando...');
         await Future.delayed(Duration(seconds: 2 * (intentos + 1)));
         return await _subirADrive(base64Str, prefijo, intentos: intentos + 1);
       }
     } catch (e) {
-      debugPrint('Subida Rastreo 11: Excepcion atrapada - ${e.toString()}');
       if (intentos < 3) {
         await Future.delayed(Duration(seconds: 2 * (intentos + 1)));
         return await _subirADrive(base64Str, prefijo, intentos: intentos + 1);

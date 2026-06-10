@@ -350,34 +350,33 @@ class _FormularioEquipoPageState extends State<FormularioEquipoPage> {
                       );
 
                       try {
-                        await provider.guardarLevantamientoFinal().timeout(const Duration(seconds: 15));
+                          await provider.guardarLevantamientoFinal().timeout(const Duration(seconds: 15));
 
-                        if (context.mounted) {
-                          Navigator.of(context).pop();
-                          listProvider.cargarEquiposPorArea(provider.areaProceso, reiniciar: true);
-                          Navigator.of(context).pop(true);
-                          
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Registro procesado exitosamente.'),
-                              backgroundColor: Color(0xFF1F5C3D),
-                            ),
-                          );
-                        }
-                      } on TimeoutException {
-                        if (context.mounted) {
-                          Navigator.of(context).pop();
-                          listProvider.cargarEquiposPorArea(provider.areaProceso, reiniciar: true);
-                          Navigator.of(context).pop(true);
-                          
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Tiempo superado. El equipo se guardó localmente y se sincronizará en segundo plano.'),
-                              backgroundColor: Color(0xFFF57F17),
-                            ),
-                          );
-                        }
-                      } catch (e) {
+                          if (context.mounted) {
+                            Navigator.of(context).pop();
+                            Navigator.of(context).pop(true);
+                            
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Registro procesado exitosamente.'),
+                                backgroundColor: Color(0xFF1F5C3D),
+                              ),
+                            );
+                          }
+                        } on TimeoutException {
+                          if (context.mounted) {
+                            Navigator.of(context).pop();
+                            Navigator.of(context).pop(true);
+                            
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Tiempo superado. El equipo se guardó localmente y se sincronizará en segundo plano.'),
+                                backgroundColor: Color(0xFFF57F17),
+                              ),
+                            );
+                          }
+                        } 
+                      catch (e) {
                         if (context.mounted) {
                           Navigator.of(context).pop();
                           ScaffoldMessenger.of(context).showSnackBar(

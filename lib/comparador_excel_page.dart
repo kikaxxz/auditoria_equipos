@@ -5,9 +5,7 @@ import 'package:printing/printing.dart';
 import 'excel_parser_service.dart';
 
 class ComparadorExcelPage extends StatefulWidget {
-  final List<Map<String, dynamic>> datosFirebase;
-
-  const ComparadorExcelPage({super.key, required this.datosFirebase});
+  const ComparadorExcelPage({super.key});
 
   @override
   State<ComparadorExcelPage> createState() => _ComparadorExcelPageState();
@@ -33,20 +31,64 @@ class _ComparadorExcelPageState extends State<ComparadorExcelPage> {
     setState(() => _procesando = true);
     
     final parser = ExcelParserService();
-    final mapaExcel = await parser.cargarYProcesarExcel();
+    
+    try {
+      final mapaExcel = await parser.cargarYProcesarExcel();
 
-    if (mapaExcel != null) {
-      _procesarDatosExcel(mapaExcel);
-    } else {
+      if (mapaExcel != null) {
+        _procesarDatosExcel(mapaExcel);
+      } else {
+        setState(() {
+          _procesando = false;
+        });
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Selección de archivo cancelada')),
+          );
+        }
+      }
+    } catch (e) {
       setState(() {
         _procesando = false;
       });
+      
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Carga de archivo cancelada o fallida')),
-        );
+        if (e.toString().contains('LIMITE_5MB')) {
+          _mostrarAlertaTamanio();
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Error al procesar el archivo Excel')),
+          );
+        }
       }
     }
+  }
+
+  void _mostrarAlertaTamanio() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: Color(0xFFDC362E), size: 28),
+            SizedBox(width: 12),
+            Expanded(child: Text('Archivo demasiado grande', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold))),
+          ]
+        ),
+        content: const Text(
+          'El archivo seleccionado supera el límite de 5 MB permitido para mantener la estabilidad del dispositivo.\n\n'
+          'Por favor, reduce el tamaño del documento eliminando hojas, imágenes o macros, e inténtalo de nuevo.',
+          style: TextStyle(fontSize: 14, color: Color(0xFF5F6368)),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Entendido', style: TextStyle(color: Color(0xFF1F5C3D), fontWeight: FontWeight.bold, fontSize: 16)),
+          ),
+        ],
+      ),
+    );
   }
 
   void _procesarDatosExcel(Map<String, Map<String, dynamic>> mapaExcel) {
@@ -452,7 +494,7 @@ class _ComparadorExcelPageState extends State<ComparadorExcelPage> {
                             border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Color(0xFFD9D9D9))),
                             contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                           ),
-                          value: _filtroFabricante.isEmpty ? null : _filtroFabricante,
+                          initialValue: _filtroFabricante.isEmpty ? null : _filtroFabricante,
                           isExpanded: true,
                           items: [
                             const DropdownMenuItem(value: '', child: Text('Todos')),
@@ -513,7 +555,7 @@ class _ComparadorExcelPageState extends State<ComparadorExcelPage> {
                       : ListView.separated(
                           padding: const EdgeInsets.all(8),
                           itemCount: _datosVisibles.length,
-                          separatorBuilder: (_, __) => const Divider(height: 1),
+                          separatorBuilder: (_, _) => const Divider(height: 1),
                           itemBuilder: (context, index) {
                             final item = _datosVisibles[index];
                             return ListTile(

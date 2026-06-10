@@ -1,6 +1,5 @@
 import 'package:web/web.dart' as web;
 import 'dart:js_interop';
-import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:syncfusion_flutter_xlsio/xlsio.dart' as excel;

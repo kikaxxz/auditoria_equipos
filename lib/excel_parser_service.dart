@@ -1,4 +1,3 @@
-import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
 import 'package:excel_community/excel_community.dart';
 import 'package:flutter/foundation.dart';
@@ -13,13 +12,17 @@ class ExcelParserService {
       );
 
       if (result != null && result.files.single.bytes != null) {
+        if (result.files.single.size > 5 * 1024 * 1024) {
+          throw Exception('LIMITE_5MB');
+        }
+
         final bytes = result.files.single.bytes!;
         return await compute(_decodificarExcel, bytes);
       }
       return null;
     } catch (e) {
-      debugPrint('Error al cargar Excel: $e');
-      return null;
+      debugPrint(e.toString());
+      rethrow;
     }
   }
 
@@ -84,7 +87,12 @@ class ExcelParserService {
           };
         }
       }
+
+      if (mapaExcel.isNotEmpty) {
+        break;
+      }
     }
+    
     return mapaExcel;
   }
 }

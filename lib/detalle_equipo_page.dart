@@ -35,12 +35,39 @@ class DetalleEquipoPage extends StatelessWidget {
       );
 
       if (datos['fotoPlacaUrl'] != null) {
-        await SincronizacionService().eliminarImagenDrive(datos['fotoPlacaUrl']);
-        await ImageCacheManager.eliminarImagen(datos['fotoPlacaUrl']);
+        try {
+          await SincronizacionService().eliminarImagenDrive(datos['fotoPlacaUrl']);
+          await ImageCacheManager.eliminarImagen(datos['fotoPlacaUrl']);
+        } catch (_) {}
       }
       if (datos['fotoGeneralUrl'] != null) {
-        await SincronizacionService().eliminarImagenDrive(datos['fotoGeneralUrl']);
-        await ImageCacheManager.eliminarImagen(datos['fotoGeneralUrl']);
+        try {
+          await SincronizacionService().eliminarImagenDrive(datos['fotoGeneralUrl']);
+          await ImageCacheManager.eliminarImagen(datos['fotoGeneralUrl']);
+        } catch (_) {}
+      }
+
+      final String? area = datos['areaProceso']?.toString();
+      if (area != null && area.trim().isNotEmpty) {
+        try {
+          final docRef = FirebaseFirestore.instance.collection('metricas').doc('conteos_areas');
+          final partes = area.split(' / ');
+          final Map<String, dynamic> actualizaciones = {};
+          String rutaAcumulada = '';
+          for (int i = 0; i < partes.length; i++) {
+            if (partes[i].trim().isEmpty) continue;
+            if (i == 0) {
+              rutaAcumulada = partes[i].trim();
+            } else {
+              rutaAcumulada += ' / ${partes[i].trim()}';
+            }
+            String safeKey = rutaAcumulada.replaceAll('/', '-').replaceAll('.', '-');
+            actualizaciones[safeKey] = FieldValue.increment(-1);
+          }
+          if (actualizaciones.isNotEmpty) {
+            await docRef.set(actualizaciones, SetOptions(merge: true));
+          }
+        } catch (_) {}
       }
 
       await FirebaseFirestore.instance.collection('equipos').doc(documentId).delete();
@@ -102,6 +129,8 @@ class DetalleEquipoPage extends StatelessWidget {
     );
     
     if (result == true && context.mounted) {
+      final listProvider = Provider.of<EquiposListProvider>(context, listen: false);
+      listProvider.cargarEquiposPorArea(datos['areaProceso'] ?? '', reiniciar: true);
       Navigator.of(context).pop(true);
     }
   }

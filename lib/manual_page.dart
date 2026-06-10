@@ -78,7 +78,7 @@ class _ManualPageState extends State<ManualPage> {
         iconTheme: const IconThemeData(color: Colors.white),
         centerTitle: !_isSearching,
         actions: [
-          // Ocultamos las flechas de navegación mientras esté procesando la búsqueda
+
           if (!_isLoadingSearch) ...[
             if (_searchResult.hasResult)
               IconButton(

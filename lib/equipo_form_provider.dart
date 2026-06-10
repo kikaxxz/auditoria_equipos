@@ -131,7 +131,7 @@ class EquipoFormProvider extends ChangeNotifier {
       'id_levantamiento': idFinal,
       'es_edicion': esEdicion,
       'codigo': codigo,
-      'codigo_minuscula': codigo.toLowerCase(), // <-- CAMBIO CLAVE: Permite que funcione el buscador.
+      'codigo_minuscula': codigo.toLowerCase(),
       'descripcion': descripcion,
       'familia': familia,
       'areaProceso': areaProceso,
@@ -150,10 +150,8 @@ class EquipoFormProvider extends ChangeNotifier {
       'observacion': observacion,
       'fotoPlacaUrl': fotoPlacaUrlExistente,
       'fotoGeneralUrl': fotoGeneralUrlExistente,
-      
       'fotoPlacaBase64': fotoPlaca != null ? fotoPlacaBase64 : null,
       'fotoGeneralBase64': fotoGeneral != null ? fotoGeneralBase64 : null,
-      
       'uid_creador': uidCreadorExistente,
       'email_creador': esEdicion ? emailCreadorExistente : creadorFinal,
       'email_original': emailActual,

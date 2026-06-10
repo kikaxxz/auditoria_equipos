@@ -1,11 +1,10 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:provider/provider.dart';
-import 'dart:math';
 import 'equipos_area_page.dart';
-import 'generador_excel.dart';
 import 'constantes.dart';
 import 'admin_usuarios_page.dart';
 import 'equipos_list_provider.dart';
@@ -32,9 +31,7 @@ class _DashboardPageState extends State<DashboardPage> {
   Map<String, int> _statsCriticos = {};
 
   bool _isLoadingTable = true;
-  List<Map<String, dynamic>> _allDashboardData = [];
-  List<Map<String, dynamic>> _filteredDashboardData = [];
-  
+  final List<Map<String, dynamic>> _filteredDashboardData = [];
   String _searchTable = '';
   String _filtroEstado = '';
   String _filtroMacroArea = '';
@@ -43,6 +40,13 @@ class _DashboardPageState extends State<DashboardPage> {
   Map<String, dynamic> _conteosAreasGlobales = {};
   bool _cargandoConteos = true;
   late List<String> _macroAreasDisponibles;
+
+  final ScrollController _scrollController = ScrollController();
+  DocumentSnapshot? _ultimoDocumento;
+  bool _hayMasDatos = true;
+  bool _cargandoMas = false;
+  
+  StreamSubscription<DocumentSnapshot>? _conteosSubscription;
 
   @override
   void initState() {
@@ -55,28 +59,46 @@ class _DashboardPageState extends State<DashboardPage> {
 
     _cargarConteosAreas();
 
+    _scrollController.addListener(() {
+      if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 200) {
+        _cargarDatosPaginados();
+      }
+    });
+
     if (widget.rol == 'admin') {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _cargarEstadisticasGlobales();
-        _cargarDatosTabla();
+        _cargarDatosPaginados(recargar: true);
       });
     }
   }
 
-  Future<void> _cargarConteosAreas() async {
-    try {
-      final doc = await FirebaseFirestore.instance.collection('metricas').doc('conteos_areas').get();
+  @override
+  void dispose() {
+    _conteosSubscription?.cancel();
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _cargarConteosAreas() {
+    _conteosSubscription = FirebaseFirestore.instance
+        .collection('metricas')
+        .doc('conteos_areas')
+        .snapshots()
+        .listen((doc) {
       if (mounted && doc.exists) {
         setState(() {
-          _conteosAreasGlobales = doc.data() ?? {};
+          _conteosAreasGlobales = doc.data() as Map<String, dynamic>? ?? {};
           _cargandoConteos = false;
         });
+      } else if (mounted) {
+         setState(() => _cargandoConteos = false);
       }
-    } catch (e) {
+    }, onError: (error) {
       if (mounted) {
         setState(() => _cargandoConteos = false);
       }
-    }
+    });
   }
 
   Future<void> _cargarEstadisticasGlobales() async {
@@ -103,59 +125,78 @@ class _DashboardPageState extends State<DashboardPage> {
     }
   }
 
-  Future<void> _cargarDatosTabla() async {
-    setState(() => _isLoadingTable = true);
-    try {
-      final snap = await FirebaseFirestore.instance
-          .collection('equipos')
-          .orderBy('sincronizadoEn', descending: true)
-          .limit(500)
-          .get();
-          
-      _allDashboardData = snap.docs.map((doc) {
-        var data = doc.data();
-        data['id_documento'] = doc.id;
-        return data;
-      }).toList();
-      
-      _applyTableFilters();
-    } catch (e) {
-      if (mounted) setState(() => _isLoadingTable = false);
-    } finally {
-      if (mounted) setState(() => _isLoadingTable = false);
+  Future<void> _cargarDatosPaginados({bool recargar = false}) async {
+    if (recargar) {
+      setState(() {
+        _filteredDashboardData.clear();
+        _ultimoDocumento = null;
+        _hayMasDatos = true;
+        _isLoadingTable = true;
+      });
     }
-  }
 
-  void _applyTableFilters() {
+    if (!_hayMasDatos || _cargandoMas) return;
+
     setState(() {
-      _filteredDashboardData = _allDashboardData.where((eq) {
-        final textMatch = _searchTable.isEmpty ||
-            (eq['codigo']?.toString().toLowerCase().contains(_searchTable.toLowerCase()) ?? false) ||
-            (eq['descripcion']?.toString().toLowerCase().contains(_searchTable.toLowerCase()) ?? false);
-            
-        final estadoMatch = _filtroEstado.isEmpty ||
-            eq['estadoOperativoObservado'] == _filtroEstado;
-            
-        final macroMatch = _filtroMacroArea.isEmpty ||
-            (eq['areaProceso']?.toString().startsWith(_filtroMacroArea) ?? false);
+      if (!recargar) _cargandoMas = true;
+    });
 
-        return textMatch && estadoMatch && macroMatch;
-      }).toList();
+    try {
+      Query query = FirebaseFirestore.instance.collection('equipos');
 
-      if (_sortOrder == 'desc') {
-        _filteredDashboardData.sort((a, b) {
-          final timeA = (a['sincronizadoEn'] as Timestamp?)?.millisecondsSinceEpoch ?? 0;
-          final timeB = (b['sincronizadoEn'] as Timestamp?)?.millisecondsSinceEpoch ?? 0;
-          return timeB.compareTo(timeA);
-        });
-      } else if (_sortOrder == 'asc') {
-        _filteredDashboardData.sort((a, b) {
-          final timeA = (a['sincronizadoEn'] as Timestamp?)?.millisecondsSinceEpoch ?? 0;
-          final timeB = (b['sincronizadoEn'] as Timestamp?)?.millisecondsSinceEpoch ?? 0;
-          return timeA.compareTo(timeB);
+      if (_filtroEstado.isNotEmpty) {
+        query = query.where('estadoOperativoObservado', isEqualTo: _filtroEstado);
+      }
+
+      if (_searchTable.isNotEmpty) {
+        final queryText = _searchTable.toLowerCase();
+        query = query.where('codigo_minuscula', isGreaterThanOrEqualTo: queryText)
+                     .where('codigo_minuscula', isLessThan: '$queryText\uf8ff')
+                     .orderBy('codigo_minuscula');
+      } else if (_filtroMacroArea.isNotEmpty) {
+        query = query.where('areaProceso', isGreaterThanOrEqualTo: _filtroMacroArea)
+                     .where('areaProceso', isLessThan: '$_filtroMacroArea\uf8ff')
+                     .orderBy('areaProceso')
+                     .orderBy('sincronizadoEn', descending: _sortOrder == 'desc');
+      } else {
+        query = query.orderBy('sincronizadoEn', descending: _sortOrder == 'desc');
+      }
+
+      query = query.limit(50);
+
+      if (_ultimoDocumento != null) {
+        query = query.startAfterDocument(_ultimoDocumento!);
+      }
+
+      final snap = await query.get();
+
+      if (snap.docs.length < 50) {
+        _hayMasDatos = false;
+      }
+
+      if (snap.docs.isNotEmpty) {
+        _ultimoDocumento = snap.docs.last;
+        
+        final nuevosDatos = snap.docs.map((doc) {
+          var data = doc.data() as Map<String, dynamic>;
+          data['id_documento'] = doc.id;
+          return data;
+        }).toList();
+
+        setState(() {
+          _filteredDashboardData.addAll(nuevosDatos);
         });
       }
-    });
+    } catch (e) {
+      debugPrint(e.toString());
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoadingTable = false;
+          _cargandoMas = false;
+        });
+      }
+    }
   }
 
   Widget _buildConteoWidget(String areaCompleta) {
@@ -169,7 +210,8 @@ class _DashboardPageState extends State<DashboardPage> {
       );
     }
 
-    final count = _conteosAreasGlobales[areaCompleta] ?? 0;
+    String safeKey = areaCompleta.replaceAll('/', '-').replaceAll('.', '-');
+    final count = _conteosAreasGlobales[safeKey] ?? 0;
     
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -411,12 +453,12 @@ class _DashboardPageState extends State<DashboardPage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const Text(
-                        'Lista Detallada de Equipos (Últimos 500)',
+                        'Lista Detallada de Equipos',
                         style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1A1C1E)),
                       ),
                       const SizedBox(height: 4),
                       const Text(
-                        'Utilice los filtros para buscar equipos específicos, área o estado operativo.',
+                        'Utilice los filtros para realizar búsquedas específicas en la base de datos.',
                         style: TextStyle(fontSize: 13, color: Color(0xFF5F6368)),
                       ),
                       const SizedBox(height: 16),
@@ -525,7 +567,7 @@ class _DashboardPageState extends State<DashboardPage> {
               width: isSmallScreen ? constraints.maxWidth : elementWidth,
               child: TextField(
                 decoration: InputDecoration(
-                  hintText: '🔍 Buscar por Tag o Nombre...',
+                  hintText: '🔍 Buscar Tag / Código',
                   filled: true,
                   fillColor: Colors.white,
                   contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -533,9 +575,9 @@ class _DashboardPageState extends State<DashboardPage> {
                   enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Color(0xFFD9D9D9))),
                   focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Color(0xFF1F5C3D))),
                 ),
-                onChanged: (val) {
+                onSubmitted: (val) {
                   _searchTable = val;
-                  _applyTableFilters();
+                  _cargarDatosPaginados(recargar: true);
                 },
               ),
             ),
@@ -558,7 +600,7 @@ class _DashboardPageState extends State<DashboardPage> {
                 ],
                 onChanged: (val) {
                   _filtroMacroArea = val ?? '';
-                  _applyTableFilters();
+                  _cargarDatosPaginados(recargar: true);
                 },
               ),
             ),
@@ -584,7 +626,7 @@ class _DashboardPageState extends State<DashboardPage> {
                 ],
                 onChanged: (val) {
                   _filtroEstado = val ?? '';
-                  _applyTableFilters();
+                  _cargarDatosPaginados(recargar: true);
                 },
               ),
             ),
@@ -606,7 +648,7 @@ class _DashboardPageState extends State<DashboardPage> {
                 ],
                 onChanged: (val) {
                   _sortOrder = val ?? 'desc';
-                  _applyTableFilters();
+                  _cargarDatosPaginados(recargar: true);
                 },
               ),
             ),
@@ -622,7 +664,7 @@ class _DashboardPageState extends State<DashboardPage> {
         padding: EdgeInsets.all(40.0),
         child: Center(
           child: Text(
-            'No se encontraron equipos que coincidan con los filtros.',
+            'No se encontraron equipos. Comience a buscar o ajuste los filtros.',
             style: TextStyle(color: Color(0xFF5F6368), fontSize: 15),
           ),
         ),
@@ -632,6 +674,7 @@ class _DashboardPageState extends State<DashboardPage> {
     return LayoutBuilder(
       builder: (context, constraints) {
         return SingleChildScrollView(
+          controller: _scrollController,
           scrollDirection: Axis.horizontal,
           child: ConstrainedBox(
             constraints: BoxConstraints(minWidth: constraints.maxWidth),
@@ -648,44 +691,55 @@ class _DashboardPageState extends State<DashboardPage> {
                 DataColumn(label: Text('Condición', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF5F6368)))),
                 DataColumn(label: Text('Acción', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF5F6368)))),
               ],
-              rows: _filteredDashboardData.map((data) {
-                final macroArea = (data['areaProceso'] as String?)?.split(' / ').first ?? 'N/A';
-                final estadoOp = data['estadoOperativoObservado']?.toString() ?? 'N/A';
-                final condicionFisica = data['estadoFisicoObservado']?.toString() ?? 'N/A';
+              rows: [
+                ..._filteredDashboardData.map((data) {
+                  final macroArea = (data['areaProceso'] as String?)?.split(' / ').first ?? 'N/A';
+                  final estadoOp = data['estadoOperativoObservado']?.toString() ?? 'N/A';
+                  final condicionFisica = data['estadoFisicoObservado']?.toString() ?? 'N/A';
 
-                return DataRow(
-                  cells: [
-                    DataCell(Text(data['codigo'] ?? 'N/A', style: const TextStyle(fontWeight: FontWeight.w600))),
-                    DataCell(
-                      SizedBox(
-                        width: 200,
-                        child: Text(data['descripcion'] ?? 'N/A', maxLines: 2, overflow: TextOverflow.ellipsis),
+                  return DataRow(
+                    cells: [
+                      DataCell(Text(data['codigo'] ?? 'N/A', style: const TextStyle(fontWeight: FontWeight.w600))),
+                      DataCell(
+                        SizedBox(
+                          width: 200,
+                          child: Text(data['descripcion'] ?? 'N/A', maxLines: 2, overflow: TextOverflow.ellipsis),
+                        ),
                       ),
-                    ),
-                    DataCell(Text(macroArea)),
-                    DataCell(_buildChipPequeno(estadoOp, true)),
-                    DataCell(_buildChipPequeno(condicionFisica, false)),
-                    DataCell(
-                      IconButton(
-                        icon: const Icon(Icons.remove_red_eye, color: Color(0xFF1F5C3D), size: 20),
-                        tooltip: 'Ver Detalles',
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => DetalleEquipoPage(
-                                documentId: data['id_documento'],
-                                datos: data,
-                                rolUsuario: widget.rol,
+                      DataCell(Text(macroArea)),
+                      DataCell(_buildChipPequeno(estadoOp, true)),
+                      DataCell(_buildChipPequeno(condicionFisica, false)),
+                      DataCell(
+                        IconButton(
+                          icon: const Icon(Icons.remove_red_eye, color: Color(0xFF1F5C3D), size: 20),
+                          tooltip: 'Ver Detalles',
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => DetalleEquipoPage(
+                                  documentId: data['id_documento'],
+                                  datos: data,
+                                  rolUsuario: widget.rol,
+                                ),
                               ),
-                            ),
-                          );
-                        },
+                            );
+                          },
+                        ),
                       ),
-                    ),
-                  ],
-                );
-              }).toList(),
+                    ],
+                  );
+                }),
+                if (_cargandoMas)
+                  const DataRow(cells: [
+                    DataCell(SizedBox.shrink()),
+                    DataCell(SizedBox.shrink()),
+                    DataCell(CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF1F5C3D))),
+                    DataCell(SizedBox.shrink()),
+                    DataCell(SizedBox.shrink()),
+                    DataCell(SizedBox.shrink()),
+                  ]),
+              ],
             ),
           ),
         );
@@ -776,9 +830,6 @@ class _DashboardPageState extends State<DashboardPage> {
                 case 'admin':
                   Navigator.push(context, MaterialPageRoute(builder: (context) => const AdminUsuariosPage()));
                   break;
-                case 'excel':
-                  GeneradorExcel.exportarEquipos(context);
-                  break;
                 case 'logout':
                   await FirebaseAuth.instance.signOut();
                   break;
@@ -793,11 +844,6 @@ class _DashboardPageState extends State<DashboardPage> {
                 const PopupMenuItem<String>(
                   value: 'admin',
                   child: Row(children: [Icon(Icons.admin_panel_settings, color: Color(0xFF1F5C3D)), SizedBox(width: 12), Text('Control de Accesos', style: TextStyle(color: Color(0xFF1A1C1E)))]),
-                ),
-              if (isAdmin)
-                const PopupMenuItem<String>(
-                  value: 'excel',
-                  child: Row(children: [Icon(Icons.table_view, color: Color(0xFF1F5C3D)), SizedBox(width: 12), Text('Exportar a Excel', style: TextStyle(color: Color(0xFF1A1C1E)))]),
                 ),
               const PopupMenuDivider(),
               const PopupMenuItem<String>(
@@ -814,7 +860,7 @@ class _DashboardPageState extends State<DashboardPage> {
               children: [
                 _buildDirectorioView(),
                 _buildDashboardInteractivaView(),
-                ComparadorExcelPage(datosFirebase: _allDashboardData),
+                ComparadorExcelPage(), 
               ],
             )
           : _buildDirectorioView(),
