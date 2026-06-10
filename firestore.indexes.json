@@ -1,0 +1,33 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "equipos",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "areaProceso",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "sincronizadoEn",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "equipos",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "areaProceso",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "codigo_minuscula",
+          "order": "ASCENDING"
+        }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

@@ -1,0 +1,314 @@
+import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:provider/provider.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'formulario_equipo.dart';
+import 'equipo_form_provider.dart';
+import 'equipos_list_provider.dart';
+import 'generador_pdf.dart';
+import 'sincronizacion_service.dart';
+import 'image_cache_manager.dart';
+import 'imagen_drive_widget.dart';
+
+class DetalleEquipoPage extends StatelessWidget {
+  final String documentId;
+  final Map<String, dynamic> datos;
+  final String rolUsuario;
+
+  const DetalleEquipoPage({
+    super.key,
+    required this.documentId,
+    required this.datos,
+    required this.rolUsuario,
+  });
+
+  Future<void> _eliminarEquipo(BuildContext context) async {
+    try {
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (BuildContext context) {
+          return const Center(
+            child: CircularProgressIndicator(color: Color(0xFF1F5C3D)),
+          );
+        },
+      );
+
+      if (datos['fotoPlacaUrl'] != null) {
+        await SincronizacionService().eliminarImagenDrive(datos['fotoPlacaUrl']);
+        await ImageCacheManager.eliminarImagen(datos['fotoPlacaUrl']);
+      }
+      if (datos['fotoGeneralUrl'] != null) {
+        await SincronizacionService().eliminarImagenDrive(datos['fotoGeneralUrl']);
+        await ImageCacheManager.eliminarImagen(datos['fotoGeneralUrl']);
+      }
+
+      await FirebaseFirestore.instance.collection('equipos').doc(documentId).delete();
+      
+      if (context.mounted) {
+        Navigator.of(context).pop();
+        
+        final listProvider = Provider.of<EquiposListProvider>(context, listen: false);
+        listProvider.removerEquipoLocal(documentId);
+        listProvider.cargarEquiposPorArea(datos['areaProceso'] ?? '', reiniciar: true);
+        
+        if (context.mounted) {
+          Navigator.of(context).pop(true);
+        }
+      }
+    } catch (e) {
+      if (context.mounted) {
+        Navigator.of(context).pop();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e')),
+        );
+      }
+    }
+  }
+
+  void _confirmarEliminacion(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          title: const Text('Eliminar Equipo'),
+          content: const Text('¿Estás seguro de que deseas eliminar este registro de forma permanente?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('CANCELAR', style: TextStyle(color: Color(0xFF5F6368))),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFDC362E)),
+              onPressed: () {
+                Navigator.of(dialogContext).pop();
+                _eliminarEquipo(context);
+              },
+              child: const Text('ELIMINAR', style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _editarEquipo(BuildContext context) async {
+    final formProvider = Provider.of<EquipoFormProvider>(context, listen: false);
+    formProvider.cargarLevantamientoExistente(documentId, datos);
+    
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const FormularioEquipoPage()),
+    );
+    
+    if (result == true && context.mounted) {
+      Navigator.of(context).pop(true);
+    }
+  }
+
+  Widget _buildFilaDato(String etiqueta, String valor) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6.0),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            flex: 2,
+            child: Text(
+              etiqueta,
+              style: const TextStyle(
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF5F6368),
+                fontSize: 13,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            flex: 3,
+            child: Text(
+              valor.isEmpty ? 'N/D' : valor,
+              style: const TextStyle(
+                color: Color(0xFF1A1C1E),
+                fontSize: 14,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSeccionTarjeta(String titulo, List<Widget> hijos) {
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: const BorderSide(color: Color(0xFFD9D9D9)),
+      ),
+      margin: const EdgeInsets.only(bottom: 16.0),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              titulo,
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF1F5C3D),
+              ),
+            ),
+            const Divider(color: Color(0xFFD9D9D9), height: 24),
+            ...hijos,
+          ],
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final usuarioActual = FirebaseAuth.instance.currentUser;
+    
+    final String currentUid = usuarioActual?.uid.trim() ?? '';
+    final String currentEmail = usuarioActual?.email?.trim().toLowerCase() ?? '';
+    
+    final String docUid = datos['uid_creador']?.toString().trim() ?? '';
+    final String docEmail = datos['email_creador']?.toString().trim().toLowerCase() ?? '';
+    final String docOriginal = datos['email_original']?.toString().trim().toLowerCase() ?? '';
+    
+    final bool esPropietario = currentUid.isNotEmpty && (
+      docUid == currentUid || 
+      docEmail == currentEmail ||
+      docOriginal == currentEmail
+    );
+    
+    final bool tienePermisos = rolUsuario == 'admin' || esPropietario;
+
+    return Scaffold(
+      backgroundColor: const Color(0xFFF5F6F7),
+      appBar: AppBar(
+        title: Text(datos['codigo'] ?? 'Detalle del Equipo'),
+        backgroundColor: const Color(0xFF1F5C3D),
+        foregroundColor: const Color(0xFFFFFFFF),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.picture_as_pdf),
+            onPressed: () => GeneradorPdf.generarReporteEquipo(context, datos),
+          ),
+        ],
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          children: [
+            _buildSeccionTarjeta('Información Principal', [
+              _buildFilaDato('Código (Tag)', datos['codigo'] ?? ''),
+              _buildFilaDato('Nombre del Equipo', datos['descripcion'] ?? ''),
+              _buildFilaDato('Equipo Padre', datos['equipoPadre'] ?? ''),
+              _buildFilaDato('Familia', datos['familia'] ?? ''),
+              _buildFilaDato('Área de Proceso', datos['areaProceso'] ?? ''),
+              _buildFilaDato('Ubicación Específica', datos['ubicacionTecnica'] ?? ''),
+            ]),
+            _buildSeccionTarjeta('Especificaciones Técnicas', [
+              _buildFilaDato('Marca', datos['modelo'] ?? ''),
+              _buildFilaDato('Número de Serie', datos['numeroSerie'] ?? ''),
+              _buildFilaDato('Variable Medida', datos['variableMedida'] ?? ''),
+              _buildFilaDato('Señal E/S', datos['senalEntradaSalida'] ?? ''),
+              _buildFilaDato('Rango LRV', datos['rangoLrv']?.toString() ?? ''),
+              _buildFilaDato('Rango URV', datos['rangoUrv']?.toString() ?? ''),
+              _buildFilaDato('Unidad', datos['unidadIngenieria'] ?? ''),
+            ]),
+            _buildSeccionTarjeta('Estado y Registro', [
+              _buildFilaDato('Estado Operativo', datos['estadoOperativoObservado'] ?? ''),
+              _buildFilaDato('Estado Físico', datos['estadoFisicoObservado'] ?? ''),
+              _buildFilaDato('Observaciones', datos['observacion'] ?? ''),
+              _buildFilaDato(
+                'Registrado por', 
+                (datos['nombre_creador'] != null && datos['nombre_creador'].toString().trim().isNotEmpty) 
+                    ? '${datos['nombre_creador']} (${datos['email_creador']})' 
+                    : (datos['email_creador'] ?? 'No registrado')
+              ),
+            ]),
+            if (datos['fotoPlacaUrl'] != null || datos['fotoGeneralUrl'] != null)
+              _buildSeccionTarjeta('Evidencia Visual', [
+                if (datos['fotoPlacaUrl'] != null)
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('Placa Técnica', style: TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF5F6368))),
+                      const SizedBox(height: 8),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: ImagenDriveWidget(
+                          fileId: datos['fotoPlacaUrl'],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+                  ),
+                if (datos['fotoGeneralUrl'] != null)
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('Equipo General', style: TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF5F6368))),
+                      const SizedBox(height: 8),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: ImagenDriveWidget(
+                          fileId: datos['fotoGeneralUrl'],
+                        ),
+                      ),
+                    ],
+                  ),
+              ]),
+          ],
+        ),
+      ),
+      bottomNavigationBar: tienePermisos
+        ? SafeArea(
+            child: Container(
+              padding: const EdgeInsets.all(16.0),
+              decoration: const BoxDecoration(
+                color: Color(0xFFFFFFFF),
+                border: Border(top: BorderSide(color: Color(0xFFD9D9D9))),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: const Color(0xFFDC362E),
+                        side: const BorderSide(color: Color(0xFFDC362E)),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                      onPressed: () => _confirmarEliminacion(context),
+                      icon: const Icon(Icons.delete_outline),
+                      label: const Text('ELIMINAR', style: TextStyle(fontWeight: FontWeight.w700)),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF1F5C3D),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                      onPressed: () => _editarEquipo(context),
+                      icon: const Icon(Icons.edit),
+                      label: const Text('EDITAR', style: TextStyle(fontWeight: FontWeight.w700)),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          )
+        : null,
+    );
+  }
+}

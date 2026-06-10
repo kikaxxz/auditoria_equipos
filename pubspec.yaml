@@ -1,0 +1,67 @@
+name: auditoria_equipos
+description: "A new Flutter project."
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.11.1
+
+dependencies:
+  flutter:
+    sdk: flutter
+  
+  web: ^1.1.1
+  cupertino_icons: ^1.0.8
+  firebase_core: ^4.9.0
+  firebase_auth: ^6.5.1
+  cloud_firestore: ^6.4.1
+  image_picker: ^1.2.2
+  pdf: ^3.12.0
+  printing: ^5.14.3
+  provider: ^6.1.5+1
+  google_sign_in: ^7.2.0
+  hive: ^2.2.3
+  hive_flutter: ^1.1.0
+  connectivity_plus: ^7.1.1
+  firebase_storage: ^13.4.1
+  http: ^1.6.0
+  uuid: ^4.5.3
+  syncfusion_flutter_xlsio: ^33.2.8
+  flutter_svg: ^2.3.0
+  flutter_secure_storage: ^10.3.1
+  firebase_remote_config: ^6.5.2
+  fl_chart: ^1.2.0
+  file_picker: ^8.1.2
+  excel_community: ^1.1.4
+  syncfusion_flutter_pdfviewer: ^33.2.8
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+  flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.14.4
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/images/login_bg.jpg
+    - assets/images/isa_logo.png
+    - assets/images/google_logo.svg
+    - assets/images/icono_tarjeta.png
+    - assets/images/logo_app.png
+    - assets/manual_mantenimiento.pdf
+
+flutter_icons:
+  android: true
+  ios: true
+  image_path: "assets/images/logo_app.png"
+  web:
+    generate: true
+    image_path: "assets/images/logo_app.png"
+    background_color: "#1F5C3D"
+    theme_color: "#1F5C3D"
+
+dependency_overrides:
+  xml: ^7.0.1
