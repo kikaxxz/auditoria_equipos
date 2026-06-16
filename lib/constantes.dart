@@ -464,16 +464,6 @@ const String rutasRawData = """
 // NICARAGUA SUGAR ESTATES LIMITED/ INGENIO SAN ANTONIO/ FABRICA DE AZUCAR/ REFINERIA/ TRATAMIENTO DE LICOR/ TUBERIA DE SACARATO PARA MELADURA/ TB-RE01-15-A SUBUNIDAD DE INSTRUMENTACION DE CAMPO/ 
 """;
 
-class TreeNode {
-  final String name;
-  final String fullPath;
-  final Map<String, TreeNode> children = {};
-
-  TreeNode({required this.name, required this.fullPath});
-
-  bool get isLeaf => children.isEmpty;
-}
-
 final List<String> areasProceso = _generarAreasProceso();
 
 List<String> _generarAreasProceso() {
@@ -490,26 +480,6 @@ List<String> _generarAreasProceso() {
       })
       .where((e) => e.isNotEmpty)
       .toList();
-}
-
-final TreeNode arbolJerarquico = _construirArbol();
-
-TreeNode _construirArbol() {
-  final root = TreeNode(name: 'Root', fullPath: '');
-  for (final path in areasProceso) {
-    final segments = path.split(' / ');
-    var current = root;
-    var currentPath = '';
-    for (var i = 0; i < segments.length; i++) {
-      final segment = segments[i];
-      currentPath = currentPath.isEmpty ? segment : '$currentPath / $segment';
-      if (!current.children.containsKey(segment)) {
-        current.children[segment] = TreeNode(name: segment, fullPath: currentPath);
-      }
-      current = current.children[segment]!;
-    }
-  }
-  return root;
 }
 
 const List<String> macroAreasPrincipales = ['COGENERACION', 'FABRICA DE AZUCAR'];

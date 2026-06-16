@@ -5,7 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'equipo_form_provider.dart';
 import 'equipos_list_provider.dart';
-import 'constantes.dart';
+import 'configuracion_provider.dart';
 
 const Color _isaPrimary = Color(0xFF1F5C3D);
 const Color _isaBackground = Color(0xFFF5F6F7);
@@ -15,7 +15,9 @@ const Color _isaTextSecondary = Color(0xFF5F6368);
 const Color _isaDivider = Color(0xFFD9D9D9);
 
 class FormularioEquipoPage extends StatefulWidget {
-  const FormularioEquipoPage({super.key});
+  final String rolUsuario;
+  
+  const FormularioEquipoPage({super.key, required this.rolUsuario});
 
   @override
   State<FormularioEquipoPage> createState() => _FormularioEquipoPageState();
@@ -25,6 +27,8 @@ class _FormularioEquipoPageState extends State<FormularioEquipoPage> {
   int _currentStep = 0;
   bool _hayConexion = true;
   late StreamSubscription<List<ConnectivityResult>> _connectivitySub;
+
+  bool get isAdmin => widget.rolUsuario == 'admin';
 
   @override
   void initState() {
@@ -54,28 +58,28 @@ class _FormularioEquipoPageState extends State<FormularioEquipoPage> {
     super.dispose();
   }
 
-  InputDecoration _buildInputDeco(String label, IconData icon, [String? hint]) {
+  InputDecoration _buildInputDeco(String label, IconData icon, [String? hint, bool readOnly = false]) {
     return InputDecoration(
       labelText: label,
       hintText: hint,
-      prefixIcon: Icon(icon, color: _isaPrimary),
+      prefixIcon: Icon(icon, color: readOnly ? _isaTextSecondary : _isaPrimary),
       filled: true,
-      fillColor: _isaSurface,
+      fillColor: readOnly ? const Color(0xFFEBEBEB) : _isaSurface,
       contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: _isaDivider),
+        borderSide: BorderSide(color: readOnly ? Colors.transparent : _isaDivider),
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: _isaDivider),
+        borderSide: BorderSide(color: readOnly ? Colors.transparent : _isaDivider),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: _isaPrimary, width: 2),
+        borderSide: BorderSide(color: readOnly ? Colors.transparent : _isaPrimary, width: 2),
       ),
       labelStyle: const TextStyle(color: _isaTextSecondary, fontSize: 14),
-      floatingLabelStyle: const TextStyle(color: _isaPrimary, fontWeight: FontWeight.w600),
+      floatingLabelStyle: TextStyle(color: readOnly ? _isaTextSecondary : _isaPrimary, fontWeight: FontWeight.w600),
     );
   }
 
@@ -190,7 +194,7 @@ class _FormularioEquipoPageState extends State<FormularioEquipoPage> {
     );
   }
 
-  Widget _buildTreeSelectionNode(TreeNode node, EquipoFormProvider provider) {
+  Widget _buildTreeSelectionNode(TreeNode node, EquipoFormProvider provider, ConfiguracionProvider config) {
     if (node.isLeaf) {
       return ListTile(
         contentPadding: const EdgeInsets.only(left: 16, right: 24, top: 4, bottom: 4),
@@ -214,7 +218,7 @@ class _FormularioEquipoPageState extends State<FormularioEquipoPage> {
           Padding(
             padding: const EdgeInsets.only(left: 16.0),
             child: Column(
-              children: node.children.values.map((c) => _buildTreeSelectionNode(c, provider)).toList(),
+              children: node.children.values.map((c) => _buildTreeSelectionNode(c, provider, config)).toList(),
             ),
           ),
         ],
@@ -222,7 +226,7 @@ class _FormularioEquipoPageState extends State<FormularioEquipoPage> {
     );
   }
 
-  void _mostrarSelectorArea(EquipoFormProvider provider) {
+  void _mostrarSelectorArea(EquipoFormProvider provider, ConfiguracionProvider config) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -258,7 +262,7 @@ class _FormularioEquipoPageState extends State<FormularioEquipoPage> {
               Expanded(
                 child: ListView(
                   padding: const EdgeInsets.only(bottom: 24),
-                  children: arbolJerarquico.children.values.map((child) => _buildTreeSelectionNode(child, provider)).toList(),
+                  children: config.arbolJerarquico.children.values.map((child) => _buildTreeSelectionNode(child, provider, config)).toList(),
                 ),
               ),
             ],
@@ -286,6 +290,7 @@ class _FormularioEquipoPageState extends State<FormularioEquipoPage> {
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<EquipoFormProvider>();
+    final config = context.watch<ConfiguracionProvider>();
 
     return Scaffold(
       backgroundColor: _isaBackground,
@@ -339,8 +344,6 @@ class _FormularioEquipoPageState extends State<FormularioEquipoPage> {
                     if (_currentStep < 4) {
                       setState(() => _currentStep += 1);
                     } else {
-                      final listProvider = context.read<EquiposListProvider>();
-
                       showDialog(
                         context: context,
                         barrierDismissible: false,
@@ -461,8 +464,15 @@ class _FormularioEquipoPageState extends State<FormularioEquipoPage> {
                             TextFormField(
                               initialValue: provider.descripcion,
                               maxLines: 2,
-                              decoration: _buildInputDeco('Nombre del Equipo', Icons.description, 'Detalle la función principal'),
+                              decoration: _buildInputDeco('Descripción del Equipo', Icons.description, 'Detalle la función principal'),
                               onChanged: (val) => provider.updateField('descripcion', val),
+                            ),
+                            const SizedBox(height: 16),
+                            TextFormField(
+                              initialValue: provider.nombre,
+                              maxLines: 2,
+                              decoration: _buildInputDeco('Nombre en Sistema', Icons.badge, 'Nombre alterno según base de datos'),
+                              onChanged: (val) => provider.updateField('nombre', val),
                             ),
                             const SizedBox(height: 16),
                             TextFormField(
@@ -476,7 +486,7 @@ class _FormularioEquipoPageState extends State<FormularioEquipoPage> {
                     ),
                     Step(
                       title: const Text('Clasificación y Ubicación', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16)),
-                      subtitle: const Text('Área y familia tecnológica', style: TextStyle(color: _isaTextSecondary)),
+                      subtitle: const Text('Área, familia tecnológica y costos', style: TextStyle(color: _isaTextSecondary)),
                       state: _currentStep > 1 ? StepState.complete : StepState.indexed,
                       isActive: _currentStep >= 1,
                       content: Container(
@@ -485,7 +495,7 @@ class _FormularioEquipoPageState extends State<FormularioEquipoPage> {
                         child: Column(
                           children: [
                             InkWell(
-                              onTap: () => _mostrarSelectorArea(provider),
+                              onTap: () => _mostrarSelectorArea(provider, config),
                               borderRadius: BorderRadius.circular(12),
                               child: InputDecorator(
                                 decoration: _buildInputDeco('Área de Proceso', Icons.domain),
@@ -508,16 +518,41 @@ class _FormularioEquipoPageState extends State<FormularioEquipoPage> {
                                 ),
                               ),
                             const SizedBox(height: 16),
-                            TextFormField(
-                              initialValue: provider.familia,
-                              decoration: _buildInputDeco('Familia del Equipo', Icons.category, 'Ej. Transmisor, Válvula'),
-                              onChanged: (val) => provider.updateField('familia', val),
+                            DropdownButtonFormField<String>(
+                              isExpanded: true,
+                              value: config.familias.contains(provider.familia) ? provider.familia : null,
+                              decoration: _buildInputDeco('Familia del Equipo', Icons.category),
+                              dropdownColor: _isaSurface,
+                              items: config.familias.map((String familiaItem) {
+                                return DropdownMenuItem<String>(
+                                  value: familiaItem,
+                                  child: Text(familiaItem, overflow: TextOverflow.ellipsis),
+                                );
+                              }).toList(),
+                              onChanged: (val) {
+                                if (val != null) provider.updateField('familia', val);
+                              },
                             ),
+                            if (provider.familia == 'Otro...') ...[
+                              const SizedBox(height: 16),
+                              TextFormField(
+                                initialValue: provider.familiaPersonalizada,
+                                decoration: _buildInputDeco('Especificar Familia', Icons.edit, 'Ingrese la familia del equipo'),
+                                onChanged: (val) => provider.updateField('familiaPersonalizada', val),
+                              ),
+                            ],
                             const SizedBox(height: 16),
                             TextFormField(
                               initialValue: provider.ubicacionTecnica,
                               decoration: _buildInputDeco('Ubicación Específica', Icons.location_on, 'Ej. Columna 3, Nivel 2'),
                               onChanged: (val) => provider.updateField('ubicacionTecnica', val),
+                            ),
+                            const SizedBox(height: 16),
+                            TextFormField(
+                              initialValue: provider.centroCosto,
+                              readOnly: !isAdmin,
+                              decoration: _buildInputDeco('Centro de Costo', Icons.monetization_on, 'Ej. 1411 - COGENERACION', !isAdmin),
+                              onChanged: isAdmin ? (val) => provider.updateField('centro_costo', val) : null,
                             ),
                           ],
                         ),
@@ -534,11 +569,37 @@ class _FormularioEquipoPageState extends State<FormularioEquipoPage> {
                         child: Column(
                           children: [
                             _buildResponsiveRow([
+                              DropdownButtonFormField<String>(
+                                isExpanded: true,
+                                value: config.marcas.contains(provider.marca) ? provider.marca : null,
+                                decoration: _buildInputDeco('Marca / Fabricante', Icons.branding_watermark),
+                                dropdownColor: _isaSurface,
+                                items: config.marcas.map((String marcaItem) {
+                                  return DropdownMenuItem<String>(
+                                    value: marcaItem,
+                                    child: Text(marcaItem, overflow: TextOverflow.ellipsis),
+                                  );
+                                }).toList(),
+                                onChanged: (val) {
+                                  if (val != null) provider.updateField('marca', val);
+                                },
+                              ),
                               TextFormField(
                                 initialValue: provider.modelo,
-                                decoration: _buildInputDeco('Marca', Icons.branding_watermark, 'Marca del fabricante'),
+                                decoration: _buildInputDeco('Modelo', Icons.inventory, 'Modelo del equipo'),
                                 onChanged: (val) => provider.updateField('modelo', val),
                               ),
+                            ]),
+                            if (provider.marca == 'Otro...') ...[
+                              const SizedBox(height: 16),
+                              TextFormField(
+                                initialValue: provider.marcaPersonalizada,
+                                decoration: _buildInputDeco('Especificar Marca', Icons.edit, 'Ingrese la marca del equipo'),
+                                onChanged: (val) => provider.updateField('marcaPersonalizada', val),
+                              ),
+                            ],
+                            const SizedBox(height: 16),
+                            _buildResponsiveRow([
                               TextFormField(
                                 initialValue: provider.numeroSerie,
                                 decoration: _buildInputDeco('No. Serie', Icons.qr_code, 'S/N de placa'),
@@ -572,19 +633,37 @@ class _FormularioEquipoPageState extends State<FormularioEquipoPage> {
                                 decoration: _buildInputDeco('URV', Icons.vertical_align_top, 'Límite Superior'),
                                 onChanged: (val) => provider.updateField('rangoUrv', val),
                               ),
-                              TextFormField(
-                                initialValue: provider.unidadIngenieria,
-                                decoration: _buildInputDeco('Unidad', Icons.square_foot, 'Ej. PSI, °C'),
-                                onChanged: (val) => provider.updateField('unidadIngenieria', val),
+                              DropdownButtonFormField<String>(
+                                isExpanded: true,
+                                value: config.unidades.contains(provider.unidadIngenieria) ? provider.unidadIngenieria : null,
+                                decoration: _buildInputDeco('Unidad', Icons.square_foot),
+                                dropdownColor: _isaSurface,
+                                items: config.unidades.map((String unidadItem) {
+                                  return DropdownMenuItem<String>(
+                                    value: unidadItem,
+                                    child: Text(unidadItem, overflow: TextOverflow.ellipsis),
+                                  );
+                                }).toList(),
+                                onChanged: (val) {
+                                  if (val != null) provider.updateField('unidadIngenieria', val);
+                                },
                               ),
                             ]),
+                            if (provider.unidadIngenieria == 'Otro...') ...[
+                              const SizedBox(height: 16),
+                              TextFormField(
+                                initialValue: provider.unidadPersonalizada,
+                                decoration: _buildInputDeco('Especificar Unidad', Icons.edit, 'Ingrese la unidad de ingeniería'),
+                                onChanged: (val) => provider.updateField('unidadPersonalizada', val),
+                              ),
+                            ],
                           ],
                         ),
                       ),
                     ),
                     Step(
                       title: const Text('Registro y Estado', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16)),
-                      subtitle: const Text('Condiciones actuales y hallazgos', style: TextStyle(color: _isaTextSecondary)),
+                      subtitle: const Text('Condiciones actuales, hallazgos y supervisión', style: TextStyle(color: _isaTextSecondary)),
                       state: _currentStep > 3 ? StepState.complete : StepState.indexed,
                       isActive: _currentStep >= 3,
                       content: Container(
@@ -592,52 +671,33 @@ class _FormularioEquipoPageState extends State<FormularioEquipoPage> {
                         decoration: _stepContentDecoration(),
                         child: Column(
                           children: [
-                            DropdownButtonFormField<String>(
-                              initialValue: provider.estadoOperativoObservado,
-                              decoration: _buildInputDeco('Estado Operativo Observado', Icons.power_settings_new),
-                              dropdownColor: _isaSurface,
-                              items: const [
-                                DropdownMenuItem(value: 'Operativa', child: Text('Operativa')),
-                                DropdownMenuItem(value: 'Detenida', child: Text('Detenida')),
-                                DropdownMenuItem(value: 'En mantenimiento', child: Text('En mantenimiento')),
-                                DropdownMenuItem(value: 'Fuera de servicio', child: Text('Fuera de servicio')),
-                                DropdownMenuItem(value: 'Desconocido', child: Text('Desconocido')),
-                              ],
-                              onChanged: (val) {
-                                if (val != null) {
-                                  provider.updateField('estadoOperativoObservado', val);
-                                }
-                              },
-                            ),
-                            const SizedBox(height: 16),
-                            DropdownButtonFormField<String>(
-                              initialValue: provider.estadoFisicoObservado,
-                              decoration: _buildInputDeco('Estado Físico Observado', Icons.build),
-                              dropdownColor: _isaSurface,
-                              items: const [
-                                DropdownMenuItem(value: 'Bueno', child: Text('Bueno')),
-                                DropdownMenuItem(value: 'Regular', child: Text('Regular')),
-                                DropdownMenuItem(value: 'Malo', child: Text('Malo')),
-                                DropdownMenuItem(value: 'Requiere reemplazo', child: Text('Requiere reemplazo')),
-                              ],
-                              onChanged: (val) {
-                                if (val != null) {
-                                  provider.updateField('estadoFisicoObservado', val);
-                                }
-                              },
-                            ),
+                            _buildResponsiveRow([
+                              TextFormField(
+                                initialValue: provider.supervisor,
+                                readOnly: !isAdmin,
+                                decoration: _buildInputDeco('Supervisor / Clasificación', Icons.person, 'Encargado del equipo', !isAdmin),
+                                onChanged: isAdmin ? (val) => provider.updateField('supervisor', val) : null,
+                              ),
+                            ]),
                             const SizedBox(height: 16),
                             TextFormField(
-                              initialValue: "${provider.fechaVerificacion.day.toString().padLeft(2, '0')}/${provider.fechaVerificacion.month.toString().padLeft(2, '0')}/${provider.fechaVerificacion.year}",
-                              readOnly: true,
-                              decoration: _buildInputDeco('Fecha de Verificación', Icons.calendar_today),
+                              initialValue: provider.planTareas,
+                              readOnly: !isAdmin,
+                              decoration: _buildInputDeco('Plan de Tareas', Icons.assignment, 'Ej. PLAN DE MTTO', !isAdmin),
+                              onChanged: isAdmin ? (val) => provider.updateField('plan_tareas', val) : null,
                             ),
                             const SizedBox(height: 16),
                             TextFormField(
                               initialValue: provider.observacion,
                               maxLines: 3,
-                              decoration: _buildInputDeco('Observations / Hallazgos', Icons.notes, 'Detalles adicionales'),
+                              decoration: _buildInputDeco('Observaciones de Auditoría', Icons.notes, 'Hallazgos actuales'),
                               onChanged: (val) => provider.updateField('observacion', val),
+                            ),
+                            const SizedBox(height: 16),
+                            TextFormField(
+                              initialValue: "${provider.fechaVerificacion.day.toString().padLeft(2, '0')}/${provider.fechaVerificacion.month.toString().padLeft(2, '0')}/${provider.fechaVerificacion.year}",
+                              readOnly: true,
+                              decoration: _buildInputDeco('Fecha de Verificación', Icons.calendar_today, null, true),
                             ),
                           ],
                         ),
@@ -659,6 +719,15 @@ class _FormularioEquipoPageState extends State<FormularioEquipoPage> {
                               provider.fotoPlacaBase64,
                               () => provider.capturarFoto('placa'),
                               Icons.branding_watermark,
+                            ),
+                            const SizedBox(height: 24),
+                            const Divider(color: _isaDivider, height: 1),
+                            const SizedBox(height: 24),
+                            _buildImageCapture(
+                              'Foto de la Placa Técnica 2 (Opcional)',
+                              provider.fotoPlacaAdicionalBase64,
+                              () => provider.capturarFoto('placa_adicional'),
+                              Icons.add_photo_alternate,
                             ),
                             const SizedBox(height: 24),
                             const Divider(color: _isaDivider, height: 1),

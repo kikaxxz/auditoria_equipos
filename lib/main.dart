@@ -13,6 +13,7 @@ import 'dashboard_page.dart';
 import 'onboarding_page.dart';
 import 'sincronizacion_service.dart';
 import 'equipos_list_provider.dart';
+import 'configuracion_provider.dart'; // <-- IMPORTACIÓN AGREGADA
 
 const Color _isaPrimary = Color(0xFF1F5C3D);
 const Color _isaSecondary = Color(0xFF2F7A4F);
@@ -143,7 +144,7 @@ void main() async {
   );
 
   await Hive.initFlutter();
-
+  await Hive.openBox('configuracion_cache');
   await Hive.openBox('borrador');
   await Hive.openBox('equipos_pendientes');
   await Hive.openBox('equipos_cache');
@@ -170,6 +171,7 @@ void main() async {
       providers: [
         ChangeNotifierProvider(create: (_) => EquipoFormProvider()),
         ChangeNotifierProvider(create: (_) => EquiposListProvider()),
+        ChangeNotifierProvider(create: (_) => ConfiguracionProvider()), // <-- REGISTRO AGREGADO
       ],
       child: MaterialApp(
         title: 'Sistema de Registro AYC - ISA',

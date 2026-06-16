@@ -12,32 +12,46 @@ import 'image_cache_manager.dart';
 class EquipoFormProvider extends ChangeNotifier {
   String codigo = '';
   String descripcion = '';
-  String familia = '';
+  String nombre = '';
   String areaProceso = '';
   String ubicacionTecnica = '';
+  String centroCosto = '';
   String equipoPadre = '';
+
+  String familia = '';
+  String familiaPersonalizada = '';
+
+  String marca = '';
+  String marcaPersonalizada = '';
 
   String modelo = '';
   String numeroSerie = '';
   String variableMedida = '';
   String rangoLrv = '';
   String rangoUrv = '';
+  
   String unidadIngenieria = '';
+  String unidadPersonalizada = '';
+  
   String senalEntradaSalida = '';
+  
+  String supervisor = '';
+  String planTareas = '';
 
-  String estadoFisicoObservado = 'Bueno';
-  String estadoOperativoObservado = 'Operativa';
   DateTime fechaVerificacion = DateTime.now();
   String observacion = '';
 
   XFile? fotoPlaca;
+  XFile? fotoPlacaAdicional;
   XFile? fotoGeneral;
 
   String? fotoPlacaBase64;
+  String? fotoPlacaAdicionalBase64;
   String? fotoGeneralBase64;
 
   String? idLevantamientoTemporal;
   String? fotoPlacaUrlExistente;
+  String? fotoPlacaAdicionalUrlExistente;
   String? fotoGeneralUrlExistente;
   String? uidCreadorExistente;
   String? emailCreadorExistente;
@@ -75,19 +89,25 @@ class EquipoFormProvider extends ChangeNotifier {
     switch (field) {
       case 'codigo': codigo = value; break;
       case 'descripcion': descripcion = value; break;
+      case 'nombre': nombre = value; break;
       case 'familia': familia = value; break;
+      case 'familiaPersonalizada': familiaPersonalizada = value; break;
       case 'areaProceso': areaProceso = value; break;
       case 'ubicacionTecnica': ubicacionTecnica = value; break;
+      case 'centro_costo': centroCosto = value; break;
       case 'equipoPadre': equipoPadre = value; break;
+      case 'marca': marca = value; break;
+      case 'marcaPersonalizada': marcaPersonalizada = value; break;
       case 'modelo': modelo = value; break;
       case 'numeroSerie': numeroSerie = value; break;
       case 'variableMedida': variableMedida = value; break;
       case 'rangoLrv': rangoLrv = value; break;
       case 'rangoUrv': rangoUrv = value; break;
       case 'unidadIngenieria': unidadIngenieria = value; break;
+      case 'unidadPersonalizada': unidadPersonalizada = value; break;
       case 'senalEntradaSalida': senalEntradaSalida = value; break;
-      case 'estadoFisicoObservado': estadoFisicoObservado = value; break;
-      case 'estadoOperativoObservado': estadoOperativoObservado = value; break;
+      case 'supervisor': supervisor = value; break;
+      case 'plan_tareas': planTareas = value; break;
       case 'observacion': observacion = value; break;
     }
     _guardarBorrador();
@@ -109,6 +129,9 @@ class EquipoFormProvider extends ChangeNotifier {
       if (tipo == 'placa') {
         fotoPlaca = photo;
         fotoPlacaBase64 = base64String;
+      } else if (tipo == 'placa_adicional') {
+        fotoPlacaAdicional = photo;
+        fotoPlacaAdicionalBase64 = base64String;
       } else {
         fotoGeneral = photo;
         fotoGeneralBase64 = base64String;
@@ -133,30 +156,35 @@ class EquipoFormProvider extends ChangeNotifier {
       'codigo': codigo,
       'codigo_minuscula': codigo.toLowerCase(),
       'descripcion': descripcion,
-      'familia': familia,
+      'nombre': nombre,
+      'familia': familia == 'Otro...' ? familiaPersonalizada : familia,
       'areaProceso': areaProceso,
       'ubicacionTecnica': ubicacionTecnica,
+      'centro_costo': centroCosto,
       'equipoPadre': equipoPadre,
+      'marca': marca == 'Otro...' ? marcaPersonalizada : marca,
       'modelo': modelo,
       'numeroSerie': numeroSerie,
       'variableMedida': variableMedida,
       'rangoLrv': rangoLrv,
       'rangoUrv': rangoUrv,
-      'unidadIngenieria': unidadIngenieria,
+      'unidadIngenieria': unidadIngenieria == 'Otro...' ? unidadPersonalizada : unidadIngenieria,
       'senalEntradaSalida': senalEntradaSalida,
-      'estadoFisicoObservado': estadoFisicoObservado,
-      'estadoOperativoObservado': estadoOperativoObservado,
+      'supervisor': supervisor,
+      'plan_tareas': planTareas,
       'fechaVerificacion': fechaVerificacion.toIso8601String(),
       'observacion': observacion,
       'fotoPlacaUrl': fotoPlacaUrlExistente,
+      'fotoPlacaAdicionalUrl': fotoPlacaAdicionalUrlExistente,
       'fotoGeneralUrl': fotoGeneralUrlExistente,
       'fotoPlacaBase64': fotoPlaca != null ? fotoPlacaBase64 : null,
+      'fotoPlacaAdicionalBase64': fotoPlacaAdicional != null ? fotoPlacaAdicionalBase64 : null,
       'fotoGeneralBase64': fotoGeneral != null ? fotoGeneralBase64 : null,
       'uid_creador': uidCreadorExistente,
       'email_creador': esEdicion ? emailCreadorExistente : creadorFinal,
       'email_original': emailActual,
     };
-    
+
     try {
       final exito = await SincronizacionService().sincronizarRegistroInmediato(datos).timeout(const Duration(seconds: 10));
       if (!exito) {
@@ -174,19 +202,52 @@ class EquipoFormProvider extends ChangeNotifier {
     idLevantamientoTemporal = docId;
     codigo = datos['codigo'] ?? '';
     descripcion = datos['descripcion'] ?? '';
-    familia = datos['familia'] ?? '';
+    nombre = datos['nombre'] ?? '';
     areaProceso = datos['areaProceso'] ?? '';
     ubicacionTecnica = datos['ubicacionTecnica'] ?? '';
+    centroCosto = datos['centro_costo'] ?? '';
     equipoPadre = datos['equipoPadre'] ?? '';
     modelo = datos['modelo'] ?? '';
     numeroSerie = datos['numeroSerie'] ?? '';
     variableMedida = datos['variableMedida'] ?? '';
     rangoLrv = datos['rangoLrv']?.toString() ?? '';
     rangoUrv = datos['rangoUrv']?.toString() ?? '';
-    unidadIngenieria = datos['unidadIngenieria'] ?? '';
     senalEntradaSalida = datos['senalEntradaSalida'] ?? '';
-    estadoFisicoObservado = datos['estadoFisicoObservado'] ?? 'Bueno';
-    estadoOperativoObservado = datos['estadoOperativoObservado'] ?? 'Operativa';
+    supervisor = datos['supervisor'] ?? '';
+    planTareas = datos['plan_tareas'] ?? '';
+    
+    final boxConfig = Hive.box('configuracion_cache');
+    final listaFamilias = List<String>.from(boxConfig.get('familias', defaultValue: []));
+    final listaMarcas = List<String>.from(boxConfig.get('marcas', defaultValue: []));
+    final listaUnidades = List<String>.from(boxConfig.get('unidades', defaultValue: []));
+
+    String familiaCargada = datos['familia'] ?? '';
+    if (familiaCargada.isNotEmpty && !listaFamilias.contains(familiaCargada)) {
+      familia = 'Otro...';
+      familiaPersonalizada = familiaCargada;
+    } else {
+      familia = familiaCargada;
+      familiaPersonalizada = '';
+    }
+
+    String marcaCargada = datos['marca'] ?? '';
+    if (marcaCargada.isNotEmpty && !listaMarcas.contains(marcaCargada)) {
+      marca = 'Otro...';
+      marcaPersonalizada = marcaCargada;
+    } else {
+      marca = marcaCargada;
+      marcaPersonalizada = '';
+    }
+
+    String unidadCargada = datos['unidadIngenieria'] ?? '';
+    if (unidadCargada.isNotEmpty && !listaUnidades.contains(unidadCargada)) {
+      unidadIngenieria = 'Otro...';
+      unidadPersonalizada = unidadCargada;
+    } else {
+      unidadIngenieria = unidadCargada;
+      unidadPersonalizada = '';
+    }
+    
     uidCreadorExistente = datos['uid_creador'];
     emailCreadorExistente = datos['email_creador'];
 
@@ -201,11 +262,14 @@ class EquipoFormProvider extends ChangeNotifier {
 
     observacion = datos['observacion'] ?? '';
     fotoPlacaUrlExistente = datos['fotoPlacaUrl'];
+    fotoPlacaAdicionalUrlExistente = datos['fotoPlacaAdicionalUrl'];
     fotoGeneralUrlExistente = datos['fotoGeneralUrl'];
     
     fotoPlacaBase64 = null;
+    fotoPlacaAdicionalBase64 = null;
     fotoGeneralBase64 = null;
     fotoPlaca = null;
+    fotoPlacaAdicional = null;
     fotoGeneral = null;
 
     notifyListeners();
@@ -214,6 +278,14 @@ class EquipoFormProvider extends ChangeNotifier {
       final bytesPlaca = await ImageCacheManager.obtenerImagen(fotoPlacaUrlExistente!);
       if (bytesPlaca != null) {
         fotoPlacaBase64 = base64Encode(bytesPlaca);
+        notifyListeners();
+      }
+    }
+
+    if (fotoPlacaAdicionalUrlExistente != null) {
+      final bytesPlacaAdicional = await ImageCacheManager.obtenerImagen(fotoPlacaAdicionalUrlExistente!);
+      if (bytesPlacaAdicional != null) {
+        fotoPlacaAdicionalBase64 = base64Encode(bytesPlacaAdicional);
         notifyListeners();
       }
     }
@@ -230,28 +302,43 @@ class EquipoFormProvider extends ChangeNotifier {
   void resetForm() {
     codigo = '';
     descripcion = '';
-    familia = '';
+    nombre = '';
     areaProceso = '';
     ubicacionTecnica = '';
+    centroCosto = '';
     equipoPadre = '';
+    
+    familia = '';
+    familiaPersonalizada = '';
+    
+    marca = '';
+    marcaPersonalizada = '';
+    
     modelo = '';
     numeroSerie = '';
     variableMedida = '';
     rangoLrv = '';
     rangoUrv = '';
+    
     unidadIngenieria = '';
+    unidadPersonalizada = '';
+    
     senalEntradaSalida = '';
-    estadoFisicoObservado = 'Bueno';
-    estadoOperativoObservado = 'Operativa';
+    supervisor = '';
+    planTareas = '';
     fechaVerificacion = DateTime.now();
     observacion = '';
+    
     fotoPlaca = null;
+    fotoPlacaAdicional = null;
     fotoGeneral = null;
     fotoPlacaBase64 = null;
+    fotoPlacaAdicionalBase64 = null;
     fotoGeneralBase64 = null;
     
     idLevantamientoTemporal = null;
     fotoPlacaUrlExistente = null;
+    fotoPlacaAdicionalUrlExistente = null;
     fotoGeneralUrlExistente = null;
     uidCreadorExistente = null;
     emailCreadorExistente = null;
@@ -265,24 +352,32 @@ class EquipoFormProvider extends ChangeNotifier {
       'idLevantamientoTemporal': idLevantamientoTemporal,
       'codigo': codigo,
       'descripcion': descripcion,
+      'nombre': nombre,
       'familia': familia,
+      'familiaPersonalizada': familiaPersonalizada,
       'areaProceso': areaProceso,
       'ubicacionTecnica': ubicacionTecnica,
+      'centroCosto': centroCosto,
       'equipoPadre': equipoPadre,
+      'marca': marca,
+      'marcaPersonalizada': marcaPersonalizada,
       'modelo': modelo,
       'numeroSerie': numeroSerie,
       'variableMedida': variableMedida,
       'rangoLrv': rangoLrv,
       'rangoUrv': rangoUrv,
       'unidadIngenieria': unidadIngenieria,
+      'unidadPersonalizada': unidadPersonalizada,
       'senalEntradaSalida': senalEntradaSalida,
-      'estadoFisicoObservado': estadoFisicoObservado,
-      'estadoOperativoObservado': estadoOperativoObservado,
+      'supervisor': supervisor,
+      'planTareas': planTareas,
       'fechaVerificacion': fechaVerificacion.toIso8601String(),
       'observacion': observacion,
       'fotoPlacaUrlExistente': fotoPlacaUrlExistente,
+      'fotoPlacaAdicionalUrlExistente': fotoPlacaAdicionalUrlExistente,
       'fotoGeneralUrlExistente': fotoGeneralUrlExistente,
       'fotoPlacaBase64': fotoPlacaBase64,
+      'fotoPlacaAdicionalBase64': fotoPlacaAdicionalBase64,
       'fotoGeneralBase64': fotoGeneralBase64,
       'uidCreadorExistente': uidCreadorExistente,
       'emailCreadorExistente': emailCreadorExistente,
@@ -294,19 +389,25 @@ class EquipoFormProvider extends ChangeNotifier {
       idLevantamientoTemporal = _borrador.get('idLevantamientoTemporal');
       codigo = _borrador.get('codigo', defaultValue: '');
       descripcion = _borrador.get('descripcion', defaultValue: '');
+      nombre = _borrador.get('nombre', defaultValue: '');
       familia = _borrador.get('familia', defaultValue: '');
+      familiaPersonalizada = _borrador.get('familiaPersonalizada', defaultValue: '');
       areaProceso = _borrador.get('areaProceso', defaultValue: '');
       ubicacionTecnica = _borrador.get('ubicacionTecnica', defaultValue: '');
+      centroCosto = _borrador.get('centroCosto', defaultValue: '');
       equipoPadre = _borrador.get('equipoPadre', defaultValue: '');
+      marca = _borrador.get('marca', defaultValue: '');
+      marcaPersonalizada = _borrador.get('marcaPersonalizada', defaultValue: '');
       modelo = _borrador.get('modelo', defaultValue: '');
       numeroSerie = _borrador.get('numeroSerie', defaultValue: '');
       variableMedida = _borrador.get('variableMedida', defaultValue: '');
       rangoLrv = _borrador.get('rangoLrv', defaultValue: '');
       rangoUrv = _borrador.get('rangoUrv', defaultValue: '');
       unidadIngenieria = _borrador.get('unidadIngenieria', defaultValue: '');
+      unidadPersonalizada = _borrador.get('unidadPersonalizada', defaultValue: '');
       senalEntradaSalida = _borrador.get('senalEntradaSalida', defaultValue: '');
-      estadoFisicoObservado = _borrador.get('estadoFisicoObservado', defaultValue: 'Bueno');
-      estadoOperativoObservado = _borrador.get('estadoOperativoObservado', defaultValue: 'Operativa');
+      supervisor = _borrador.get('supervisor', defaultValue: '');
+      planTareas = _borrador.get('planTareas', defaultValue: '');
       uidCreadorExistente = _borrador.get('uidCreadorExistente');
       emailCreadorExistente = _borrador.get('emailCreadorExistente');
 
@@ -317,8 +418,10 @@ class EquipoFormProvider extends ChangeNotifier {
 
       observacion = _borrador.get('observacion', defaultValue: '');
       fotoPlacaUrlExistente = _borrador.get('fotoPlacaUrlExistente');
+      fotoPlacaAdicionalUrlExistente = _borrador.get('fotoPlacaAdicionalUrlExistente');
       fotoGeneralUrlExistente = _borrador.get('fotoGeneralUrlExistente');
       fotoPlacaBase64 = _borrador.get('fotoPlacaBase64');
+      fotoPlacaAdicionalBase64 = _borrador.get('fotoPlacaAdicionalBase64');
       fotoGeneralBase64 = _borrador.get('fotoGeneralBase64');
     }
   }

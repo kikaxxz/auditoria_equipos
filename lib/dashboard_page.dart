@@ -5,12 +5,12 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:provider/provider.dart';
 import 'equipos_area_page.dart';
-import 'constantes.dart';
+import 'configuracion_provider.dart';
 import 'admin_usuarios_page.dart';
 import 'equipos_list_provider.dart';
 import 'detalle_equipo_page.dart';
-import 'comparador_excel_page.dart';
 import 'manual_page.dart';
+import 'Configuracion.dart';
 
 class DashboardPage extends StatefulWidget {
   final String rol;
@@ -27,19 +27,15 @@ class _DashboardPageState extends State<DashboardPage> {
   
   bool _cargandoStats = true;
   int _totalEquipos = 0;
-  Map<String, int> _statsOperativos = {};
-  Map<String, int> _statsCriticos = {};
 
   bool _isLoadingTable = true;
   final List<Map<String, dynamic>> _filteredDashboardData = [];
   String _searchTable = '';
-  String _filtroEstado = '';
   String _filtroMacroArea = '';
   String _sortOrder = 'desc';
 
   Map<String, dynamic> _conteosAreasGlobales = {};
   bool _cargandoConteos = true;
-  late List<String> _macroAreasDisponibles;
 
   final ScrollController _scrollController = ScrollController();
   DocumentSnapshot? _ultimoDocumento;
@@ -51,12 +47,6 @@ class _DashboardPageState extends State<DashboardPage> {
   @override
   void initState() {
     super.initState();
-    _macroAreasDisponibles = areasProceso
-        .map((area) => area.split(' / ').first.trim())
-        .toSet()
-        .toList();
-    _macroAreasDisponibles.sort();
-
     _cargarConteosAreas();
 
     _scrollController.addListener(() {
@@ -88,7 +78,7 @@ class _DashboardPageState extends State<DashboardPage> {
         .listen((doc) {
       if (mounted && doc.exists) {
         setState(() {
-          _conteosAreasGlobales = doc.data() as Map<String, dynamic>? ?? {};
+          _conteosAreasGlobales = doc.data() ?? {};
           _cargandoConteos = false;
         });
       } else if (mounted) {
@@ -103,20 +93,13 @@ class _DashboardPageState extends State<DashboardPage> {
 
   Future<void> _cargarEstadisticasGlobales() async {
     setState(() => _cargandoStats = true);
-    final provider = Provider.of<EquiposListProvider>(context, listen: false);
 
     try {
-      final futureTotal = FirebaseFirestore.instance.collection('equipos').count().get();
-      final futureOperativos = provider.obtenerEstadisticasOperativas();
-      final futureCriticos = provider.obtenerEstadosCriticos();
-
-      final resultados = await Future.wait([futureTotal, futureOperativos, futureCriticos]);
+      final querySnapshot = await FirebaseFirestore.instance.collection('equipos').count().get();
 
       if (mounted) {
         setState(() {
-          _totalEquipos = (resultados[0] as AggregateQuerySnapshot).count ?? 0;
-          _statsOperativos = resultados[1] as Map<String, int>;
-          _statsCriticos = resultados[2] as Map<String, int>;
+          _totalEquipos = querySnapshot.count ?? 0;
           _cargandoStats = false;
         });
       }
@@ -143,10 +126,6 @@ class _DashboardPageState extends State<DashboardPage> {
 
     try {
       Query query = FirebaseFirestore.instance.collection('equipos');
-
-      if (_filtroEstado.isNotEmpty) {
-        query = query.where('estadoOperativoObservado', isEqualTo: _filtroEstado);
-      }
 
       if (_searchTable.isNotEmpty) {
         final queryText = _searchTable.toLowerCase();
@@ -300,8 +279,8 @@ class _DashboardPageState extends State<DashboardPage> {
     );
   }
 
-  Widget _buildSearchList() {
-    final areasFiltradas = areasProceso.where((area) {
+  Widget _buildSearchList(ConfiguracionProvider config) {
+    final areasFiltradas = config.areasProceso.where((area) {
       return area.toLowerCase().contains(_terminoBusquedaDirectorio.toLowerCase());
     }).toList();
 
@@ -384,8 +363,21 @@ class _DashboardPageState extends State<DashboardPage> {
     );
   }
 
-  Widget _buildDirectorioView() {
+  Widget _buildDirectorioView(ConfiguracionProvider config) {
     final bool isSearching = _terminoBusquedaDirectorio.isNotEmpty;
+    
+    if (config.cargando && config.arbolJerarquico.children.isEmpty) {
+      return const Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            CircularProgressIndicator(color: Color(0xFF1F5C3D)),
+            SizedBox(height: 16),
+            Text('Sincronizando directorios...', style: TextStyle(color: Color(0xFF5F6368))),
+          ],
+        ),
+      );
+    }
 
     return Column(
       children: [
@@ -417,24 +409,24 @@ class _DashboardPageState extends State<DashboardPage> {
         ),
         Expanded(
           child: isSearching
-              ? _buildSearchList()
+              ? _buildSearchList(config)
               : ListView(
                   padding: EdgeInsets.only(left: 16.0, right: 16.0, bottom: widget.rol == 'admin' ? 16.0 : 80.0),
-                  children: arbolJerarquico.children.values.map((child) => _buildTreeNodeWidget(child)).toList(),
+                  children: config.arbolJerarquico.children.values.map((child) => _buildTreeNodeWidget(child)).toList(),
                 ),
         ),
       ],
     );
   }
 
-  Widget _buildDashboardInteractivaView() {
+  Widget _buildDashboardInteractivaView(ConfiguracionProvider config) {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           _buildSummaryCardsRow(),
-          
+          const SizedBox(height: 16),
           Container(
             decoration: BoxDecoration(
               color: Colors.white,
@@ -462,7 +454,7 @@ class _DashboardPageState extends State<DashboardPage> {
                         style: TextStyle(fontSize: 13, color: Color(0xFF5F6368)),
                       ),
                       const SizedBox(height: 16),
-                      _buildFiltersGrid(),
+                      _buildFiltersGrid(config),
                     ],
                   ),
                 ),
@@ -491,73 +483,52 @@ class _DashboardPageState extends State<DashboardPage> {
       );
     }
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final isSmallScreen = constraints.maxWidth < 600;
-        return Wrap(
-          spacing: 16,
-          runSpacing: 16,
+    return SizedBox(
+      width: double.infinity,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 20),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFFD9D9D9)),
+          boxShadow: [
+            BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 8, offset: const Offset(0, 2)),
+          ],
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            SizedBox(
-              width: isSmallScreen ? constraints.maxWidth : (constraints.maxWidth - 48) / 4,
-              child: _buildSingleStatCard('Total General', _totalEquipos.toString(), true),
+            const Text(
+              'Total de Equipos en la Planta',
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Color(0xFF5F6368)),
+              textAlign: TextAlign.center,
             ),
-            SizedBox(
-              width: isSmallScreen ? constraints.maxWidth : (constraints.maxWidth - 48) / 4,
-              child: _buildSingleStatCard('Operativos', _statsOperativos['Operativa']?.toString() ?? '0', false),
-            ),
-            SizedBox(
-              width: isSmallScreen ? (constraints.maxWidth - 16) / 2 : (constraints.maxWidth - 48) / 4,
-              child: _buildSingleStatCard('En Falla', _statsCriticos['Malo']?.toString() ?? '0', false),
-            ),
-            SizedBox(
-              width: isSmallScreen ? (constraints.maxWidth - 16) / 2 : (constraints.maxWidth - 48) / 4,
-              child: _buildSingleStatCard('Reemplazos', _statsCriticos['Requiere reemplazo']?.toString() ?? '0', false),
+            const SizedBox(height: 12),
+            Text(
+              _totalEquipos.toString(),
+              style: const TextStyle(
+                fontSize: 42,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF1F5C3D),
+              ),
             ),
           ],
-        );
-      },
-    );
-  }
-
-  Widget _buildSingleStatCard(String title, String value, bool isPrimary) {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFD9D9D9)),
-        boxShadow: [
-          BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 8, offset: const Offset(0, 2)),
-        ],
-      ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Text(
-            title,
-            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Color(0xFF5F6368)),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 8),
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: isPrimary ? 36 : 28,
-              fontWeight: FontWeight.bold,
-              color: const Color(0xFF1F5C3D),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
 
-  Widget _buildFiltersGrid() {
+  Widget _buildFiltersGrid(ConfiguracionProvider config) {
+    final macroAreasDisponibles = config.areasProceso
+        .map((area) => area.split(' / ').first.trim())
+        .toSet()
+        .toList();
+    macroAreasDisponibles.sort();
+
     return LayoutBuilder(
       builder: (context, constraints) {
-        final isSmallScreen = constraints.maxWidth < 600;
-        final double elementWidth = isSmallScreen ? constraints.maxWidth : (constraints.maxWidth - 48) / 4;
+        final isSmallScreen = constraints.maxWidth < 700;
+        final double elementWidth = isSmallScreen ? constraints.maxWidth : (constraints.maxWidth - 32) / 3;
 
         return Wrap(
           spacing: 16,
@@ -567,13 +538,13 @@ class _DashboardPageState extends State<DashboardPage> {
               width: isSmallScreen ? constraints.maxWidth : elementWidth,
               child: TextField(
                 decoration: InputDecoration(
-                  hintText: '🔍 Buscar Tag / Código',
+                  hintText: 'Buscar Tag / Código',
+                  prefixIcon: const Icon(Icons.search, color: Color(0xFF5F6368), size: 20),
                   filled: true,
-                  fillColor: Colors.white,
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Color(0xFFD9D9D9))),
-                  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Color(0xFFD9D9D9))),
-                  focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Color(0xFF1F5C3D))),
+                  fillColor: const Color(0xFFF5F6F7),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
+                  focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFF1F5C3D))),
                 ),
                 onSubmitted: (val) {
                   _searchTable = val;
@@ -585,18 +556,18 @@ class _DashboardPageState extends State<DashboardPage> {
               width: isSmallScreen ? constraints.maxWidth : elementWidth,
               child: DropdownButtonFormField<String>(
                 decoration: InputDecoration(
+                  prefixIcon: const Icon(Icons.category, color: Color(0xFF5F6368), size: 20),
                   filled: true,
-                  fillColor: Colors.white,
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Color(0xFFD9D9D9))),
-                  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Color(0xFFD9D9D9))),
+                  fillColor: const Color(0xFFF5F6F7),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
                 ),
                 initialValue: _filtroMacroArea.isEmpty ? null : _filtroMacroArea,
                 hint: const Text('Todas las Áreas', overflow: TextOverflow.ellipsis),
                 isExpanded: true,
                 items: [
                   const DropdownMenuItem(value: '', child: Text('Todas las Áreas')),
-                  ..._macroAreasDisponibles.map((m) => DropdownMenuItem(value: m, child: Text(m))),
+                  ...macroAreasDisponibles.map((m) => DropdownMenuItem(value: m, child: Text(m))),
                 ],
                 onChanged: (val) {
                   _filtroMacroArea = val ?? '';
@@ -608,37 +579,11 @@ class _DashboardPageState extends State<DashboardPage> {
               width: isSmallScreen ? constraints.maxWidth : elementWidth,
               child: DropdownButtonFormField<String>(
                 decoration: InputDecoration(
+                  prefixIcon: const Icon(Icons.sort, color: Color(0xFF5F6368), size: 20),
                   filled: true,
-                  fillColor: Colors.white,
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Color(0xFFD9D9D9))),
-                  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Color(0xFFD9D9D9))),
-                ),
-                initialValue: _filtroEstado.isEmpty ? null : _filtroEstado,
-                hint: const Text('Todos los Estados'),
-                isExpanded: true,
-                items: const [
-                  DropdownMenuItem(value: '', child: Text('Todos los Estados')),
-                  DropdownMenuItem(value: 'Operativa', child: Text('Operativa')),
-                  DropdownMenuItem(value: 'Detenida', child: Text('Detenida')),
-                  DropdownMenuItem(value: 'En mantenimiento', child: Text('En mantenimiento')),
-                  DropdownMenuItem(value: 'Fuera de servicio', child: Text('Fuera de servicio')),
-                ],
-                onChanged: (val) {
-                  _filtroEstado = val ?? '';
-                  _cargarDatosPaginados(recargar: true);
-                },
-              ),
-            ),
-            SizedBox(
-              width: isSmallScreen ? constraints.maxWidth : elementWidth,
-              child: DropdownButtonFormField<String>(
-                decoration: InputDecoration(
-                  filled: true,
-                  fillColor: Colors.white,
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Color(0xFFD9D9D9))),
-                  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Color(0xFFD9D9D9))),
+                  fillColor: const Color(0xFFF5F6F7),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
                 ),
                 initialValue: _sortOrder,
                 isExpanded: true,
@@ -679,40 +624,67 @@ class _DashboardPageState extends State<DashboardPage> {
           child: ConstrainedBox(
             constraints: BoxConstraints(minWidth: constraints.maxWidth),
             child: DataTable(
-              headingRowColor: WidgetStateProperty.all(const Color(0xFFF5F6F7)),
-              dataRowMaxHeight: 65,
+              headingRowColor: WidgetStateProperty.all(const Color(0xFFF9FAFB)),
+              dataRowMaxHeight: 70,
               columnSpacing: 24,
               horizontalMargin: 20,
+              dividerThickness: 0.5,
               columns: const [
                 DataColumn(label: Text('Tag (Código)', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF5F6368)))),
-                DataColumn(label: Text('Descripción', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF5F6368)))),
+                DataColumn(label: Text('Nombre en Sistema', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF5F6368)))),
                 DataColumn(label: Text('Macro Área', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF5F6368)))),
-                DataColumn(label: Text('Estado Operativo', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF5F6368)))),
-                DataColumn(label: Text('Condición', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF5F6368)))),
+                DataColumn(label: Text('Fabricante / Modelo', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF5F6368)))),
+                DataColumn(label: Text('Ubicación Específica', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF5F6368)))),
                 DataColumn(label: Text('Acción', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF5F6368)))),
               ],
               rows: [
                 ..._filteredDashboardData.map((data) {
                   final macroArea = (data['areaProceso'] as String?)?.split(' / ').first ?? 'N/A';
-                  final estadoOp = data['estadoOperativoObservado']?.toString() ?? 'N/A';
-                  final condicionFisica = data['estadoFisicoObservado']?.toString() ?? 'N/A';
+                  
+                  String ubicacionCompleta = data['ubicacionTecnica'] ?? '';
+                  String ubicacionEspecifica = 'N/A';
+                  if (ubicacionCompleta.isNotEmpty) {
+                    final partes = ubicacionCompleta.split('/').where((s) => s.trim().isNotEmpty).toList();
+                    if (partes.length >= 2) {
+                      ubicacionEspecifica = partes[partes.length - 2].trim();
+                    } else if (partes.isNotEmpty) {
+                      ubicacionEspecifica = partes.last.trim();
+                    }
+                  }
+
+                  String fabricante = data['fabricante']?.toString().trim() ?? '';
+                  String modelo = data['modelo']?.toString().trim() ?? '';
+                  String fabricanteModelo = 'N/A';
+                  if (fabricante.isNotEmpty && modelo.isNotEmpty) {
+                    fabricanteModelo = '$fabricante - $modelo';
+                  } else if (fabricante.isNotEmpty) {
+                    fabricanteModelo = fabricante;
+                  } else if (modelo.isNotEmpty) {
+                    fabricanteModelo = modelo;
+                  }
+
+                  String nombrePrincipal = data['nombre']?.toString().trim() ?? '';
+                  if (nombrePrincipal.isEmpty) {
+                    nombrePrincipal = data['descripcion']?.toString().trim() ?? 'Sin nombre';
+                  }
 
                   return DataRow(
                     cells: [
-                      DataCell(Text(data['codigo'] ?? 'N/A', style: const TextStyle(fontWeight: FontWeight.w600))),
+                      DataCell(Text(data['codigo'] ?? 'N/A', style: const TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF1A1C1E)))),
                       DataCell(
                         SizedBox(
-                          width: 200,
-                          child: Text(data['descripcion'] ?? 'N/A', maxLines: 2, overflow: TextOverflow.ellipsis),
+                          width: 250,
+                          child: Text(nombrePrincipal, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Color(0xFF1A1C1E))),
                         ),
                       ),
-                      DataCell(Text(macroArea)),
-                      DataCell(_buildChipPequeno(estadoOp, true)),
-                      DataCell(_buildChipPequeno(condicionFisica, false)),
+                      DataCell(Text(macroArea, style: const TextStyle(color: Color(0xFF5F6368)))),
+                      DataCell(Text(fabricanteModelo, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Color(0xFF5F6368)))),
+                      DataCell(Text(ubicacionEspecifica, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Color(0xFF5F6368)))),
                       DataCell(
                         IconButton(
-                          icon: const Icon(Icons.remove_red_eye, color: Color(0xFF1F5C3D), size: 20),
+                          icon: const Icon(Icons.remove_red_eye, color: Color(0xFF1F5C3D), size: 22),
                           tooltip: 'Ver Detalles',
+                          splashRadius: 24,
                           onPressed: () {
                             Navigator.push(
                               context,
@@ -747,41 +719,15 @@ class _DashboardPageState extends State<DashboardPage> {
     );
   }
 
-  Widget _buildChipPequeno(String estado, bool esOperativo) {
-    Color colorFondo = const Color(0xFFF5F6F7);
-    Color colorTexto = const Color(0xFF5F6368);
-    String texto = estado.toUpperCase().trim();
-
-    if (texto.contains('OPERATIVA') || texto.contains('BUENO')) {
-      colorFondo = const Color(0xFFE6F4EA);
-      colorTexto = const Color(0xFF1F5C3D);
-    } else if (texto.contains('MANTENIMIENTO') || texto.contains('REGULAR')) {
-      colorFondo = const Color(0xFFFFF8E1);
-      colorTexto = const Color(0xFFF57F17);
-    } else if (texto.contains('DETENIDA') || texto.contains('MALO') || texto.contains('REEMPLAZO')) {
-      colorFondo = const Color(0xFFFCE8E6);
-      colorTexto = const Color(0xFFDC362E);
-    }
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(color: colorFondo, borderRadius: BorderRadius.circular(6)),
-      child: Text(
-        texto,
-        style: TextStyle(color: colorTexto, fontSize: 10, fontWeight: FontWeight.bold),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final bool isAdmin = widget.rol == 'admin';
+    final config = context.watch<ConfiguracionProvider>();
 
     String getAppBarTitle() {
       if (!isAdmin) return 'Directorio de Planta';
       if (_currentIndex == 0) return 'Directorio de Planta';
-      if (_currentIndex == 1) return 'Panel Interactivo';
-      return 'Registros';
+      return 'Panel Interactivo';
     }
 
     return Scaffold(
@@ -830,6 +776,9 @@ class _DashboardPageState extends State<DashboardPage> {
                 case 'admin':
                   Navigator.push(context, MaterialPageRoute(builder: (context) => const AdminUsuariosPage()));
                   break;
+                case 'config':
+                  Navigator.push(context, MaterialPageRoute(builder: (context) => const PanelConfiguracionPage()));
+                  break;
                 case 'logout':
                   await FirebaseAuth.instance.signOut();
                   break;
@@ -840,11 +789,16 @@ class _DashboardPageState extends State<DashboardPage> {
                 value: 'manual',
                 child: Row(children: [Icon(Icons.picture_as_pdf, color: Color(0xFF1F5C3D)), SizedBox(width: 12), Text('Manual de Mantenimiento', style: TextStyle(color: Color(0xFF1A1C1E)))]),
               ),
-              if (isAdmin)
+              if (isAdmin) ...[
                 const PopupMenuItem<String>(
                   value: 'admin',
                   child: Row(children: [Icon(Icons.admin_panel_settings, color: Color(0xFF1F5C3D)), SizedBox(width: 12), Text('Control de Accesos', style: TextStyle(color: Color(0xFF1A1C1E)))]),
                 ),
+                const PopupMenuItem<String>(
+                  value: 'config',
+                  child: Row(children: [Icon(Icons.settings, color: Color(0xFF1F5C3D)), SizedBox(width: 12), Text('Configuración del Sistema', style: TextStyle(color: Color(0xFF1A1C1E)))]),
+                ),
+              ],
               const PopupMenuDivider(),
               const PopupMenuItem<String>(
                 value: 'logout',
@@ -858,12 +812,11 @@ class _DashboardPageState extends State<DashboardPage> {
           ? IndexedStack(
               index: _currentIndex,
               children: [
-                _buildDirectorioView(),
-                _buildDashboardInteractivaView(),
-                ComparadorExcelPage(), 
+                _buildDirectorioView(config),
+                _buildDashboardInteractivaView(config),
               ],
             )
-          : _buildDirectorioView(),
+          : _buildDirectorioView(config),
       bottomNavigationBar: isAdmin
           ? BottomNavigationBar(
               currentIndex: _currentIndex,
@@ -880,7 +833,6 @@ class _DashboardPageState extends State<DashboardPage> {
               items: const [
                 BottomNavigationBarItem(icon: Icon(Icons.account_tree), label: 'Directorio'),
                 BottomNavigationBarItem(icon: Icon(Icons.analytics), label: 'Dashboard'),
-                BottomNavigationBarItem(icon: Icon(Icons.compare_arrows), label: 'Registros'),
               ],
             )
           : null,

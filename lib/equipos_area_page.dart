@@ -41,45 +41,36 @@ class _EquiposAreaPageState extends State<EquiposAreaPage> {
     super.dispose();
   }
 
-  Widget _buildEstadoChip(String estado) {
-    Color colorFondo;
-    Color colorTexto;
-    String texto = estado.toUpperCase().trim();
+  Widget _buildEquipoCard(Map<String, dynamic> data, String docId) {
+    String ubicacionCompleta = data['ubicacionTecnica'] ?? '';
+    String ubicacionEspecifica = 'Ubicación no especificada';
 
-    if (texto.contains('OPERATIVA') || texto.contains('CORRECTO') || texto.contains('BIEN')) {
-      colorFondo = const Color(0xFFE6F4EA);
-      colorTexto = const Color(0xFF1F5C3D);
-    } else if (texto.contains('ADVERTENCIA') || texto.contains('MANTENIMIENTO') || texto.contains('PRECAUCIÓN')) {
-      colorFondo = const Color(0xFFFFF8E1);
-      colorTexto = const Color(0xFFF57F17);
-    } else if (texto.contains('FALLA') || texto.contains('CRÍTICO') || texto.contains('MALO') || texto.contains('DETENIDA')) {
-      colorFondo = const Color(0xFFFCE8E6);
-      colorTexto = const Color(0xFFDC362E);
-    } else {
-      colorFondo = const Color(0xFFF5F6F7);
-      colorTexto = const Color(0xFF5F6368);
-      texto = texto.isEmpty ? 'SIN ESTADO' : texto;
+    if (ubicacionCompleta.isNotEmpty) {
+      final partes = ubicacionCompleta.split('/').where((s) => s.trim().isNotEmpty).toList();
+      if (partes.length >= 2) {
+        ubicacionEspecifica = partes[partes.length - 2].trim();
+      } else if (partes.isNotEmpty) {
+        ubicacionEspecifica = partes.last.trim();
+      }
     }
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: colorFondo,
-        borderRadius: BorderRadius.circular(6),
-      ),
-      child: Text(
-        texto,
-        style: TextStyle(
-          color: colorTexto,
-          fontSize: 11,
-          fontWeight: FontWeight.w700,
-          letterSpacing: 0.5,
-        ),
-      ),
-    );
-  }
+    String fabricante = data['fabricante']?.toString().trim() ?? '';
+    String modelo = data['modelo']?.toString().trim() ?? '';
+    String fabricanteModelo = 'Fabricante/Modelo no especificado';
 
-  Widget _buildEquipoCard(Map<String, dynamic> data, String docId) {
+    if (fabricante.isNotEmpty && modelo.isNotEmpty) {
+      fabricanteModelo = '$fabricante - $modelo';
+    } else if (fabricante.isNotEmpty) {
+      fabricanteModelo = fabricante;
+    } else if (modelo.isNotEmpty) {
+      fabricanteModelo = modelo;
+    }
+
+    String nombrePrincipal = data['nombre']?.toString().trim() ?? '';
+    if (nombrePrincipal.isEmpty) {
+      nombrePrincipal = data['descripcion']?.toString().trim() ?? 'Sin nombre';
+    }
+
     return Card(
       elevation: 1,
       shadowColor: Colors.black12,
@@ -133,7 +124,7 @@ class _EquiposAreaPageState extends State<EquiposAreaPage> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          data['descripcion'] ?? 'Sin nombre',
+                          nombrePrincipal,
                           style: const TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.w700,
@@ -145,11 +136,11 @@ class _EquiposAreaPageState extends State<EquiposAreaPage> {
                         const SizedBox(height: 4),
                         Row(
                           children: [
-                            const Icon(Icons.location_on, size: 14, color: Color(0xFF5F6368)),
+                            const Icon(Icons.business, size: 14, color: Color(0xFF5F6368)),
                             const SizedBox(width: 4),
                             Expanded(
                               child: Text(
-                                data['ubicacionTecnica'] ?? 'Ubicación no especificada',
+                                fabricanteModelo,
                                 style: const TextStyle(
                                   fontSize: 13,
                                   color: Color(0xFF5F6368),
@@ -168,21 +159,50 @@ class _EquiposAreaPageState extends State<EquiposAreaPage> {
               ),
               const Spacer(),
               const Divider(color: Color(0xFFD9D9D9), height: 24),
-              Text(
-                'Tag: ${data['codigo'] ?? 'Sin código'}',
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: Color(0xFF1A1C1E),
-                  height: 1.3,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-              const SizedBox(height: 12),
-              Align(
-                alignment: Alignment.centerRight,
-                child: _buildEstadoChip(data['estadoOperativoObservado'] ?? ''),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    flex: 2,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('Tag', style: TextStyle(fontSize: 11, color: Color(0xFF5F6368))),
+                        Text(
+                          data['codigo']?.toString().isNotEmpty == true ? data['codigo'] : 'Sin código',
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF1A1C1E),
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    flex: 3,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        const Text('Ubicación', style: TextStyle(fontSize: 11, color: Color(0xFF5F6368))),
+                        Text(
+                          ubicacionEspecifica,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF1F5C3D),
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.right,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
@@ -283,7 +303,7 @@ class _EquiposAreaPageState extends State<EquiposAreaPage> {
                             }
                             final data = provider.equipos[index];
                             return SizedBox(
-                              height: 180,
+                              height: 200,
                               child: _buildEquipoCard(data, data['id_documento']),
                             );
                           },
@@ -302,7 +322,7 @@ class _EquiposAreaPageState extends State<EquiposAreaPage> {
                           padding: const EdgeInsets.all(24.0),
                           gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
                             maxCrossAxisExtent: 420,
-                            mainAxisExtent: 190,
+                            mainAxisExtent: 220,
                             crossAxisSpacing: 16,
                             mainAxisSpacing: 16,
                           ),
@@ -329,7 +349,7 @@ class _EquiposAreaPageState extends State<EquiposAreaPage> {
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (context) => const FormularioEquipoPage(),
+              builder: (context) => FormularioEquipoPage(rolUsuario: widget.rol),
             ),
           );
         },

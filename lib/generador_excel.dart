@@ -26,6 +26,7 @@ class GeneradorExcel {
           'familia': data['familia']?.toString() ?? '',
           'areaProceso': data['areaProceso']?.toString() ?? '',
           'ubicacionTecnica': data['ubicacionTecnica']?.toString() ?? '',
+          'marca': data['marca']?.toString() ?? '',
           'modelo': data['modelo']?.toString() ?? '',
           'numeroSerie': data['numeroSerie']?.toString() ?? '',
           'variableMedida': data['variableMedida']?.toString() ?? '',
@@ -33,8 +34,6 @@ class GeneradorExcel {
           'rangoLrv': data['rangoLrv']?.toString() ?? '',
           'rangoUrv': data['rangoUrv']?.toString() ?? '',
           'unidadIngenieria': data['unidadIngenieria']?.toString() ?? '',
-          'estadoOperativoObservado': data['estadoOperativoObservado']?.toString() ?? '',
-          'estadoFisicoObservado': data['estadoFisicoObservado']?.toString() ?? '',
           'observacion': data['observacion']?.toString() ?? '',
           'email_creador': data['email_creador']?.toString() ?? '',
           'sincronizadoEn': data['sincronizadoEn'] != null ? (data['sincronizadoEn'] as Timestamp).toDate().toIso8601String() : null,
@@ -83,9 +82,8 @@ List<int> _procesarExcelAislado(List<Map<String, dynamic>> datos) {
 
   final headers = [
     'Código (Tag)', 'Nombre del Equipo', 'Equipo Padre', 'Familia', 'Área de Proceso', 'Ubicación Técnica',
-    'Marca', 'No. Serie', 'Variable Medida', 'Señal E/S',
-    'Rango LRV', 'Rango URV', 'Unidad Ing.', 'Estado Operativo',
-    'Estado Físico', 'Observaciones', 'Auditor', 'Fecha de Registro',
+    'Marca', 'Modelo', 'No. Serie', 'Variable Medida', 'Señal E/S',
+    'Rango LRV', 'Rango URV', 'Unidad Ing.', 'Observaciones', 'Auditor', 'Fecha de Registro',
     'Última Modificación'
   ];
 
@@ -108,30 +106,29 @@ List<int> _procesarExcelAislado(List<Map<String, dynamic>> datos) {
     sheet.getRangeByIndex(row, 4).setText(data['familia']);
     sheet.getRangeByIndex(row, 5).setText(data['areaProceso']);
     sheet.getRangeByIndex(row, 6).setText(data['ubicacionTecnica']);
-    sheet.getRangeByIndex(row, 7).setText(data['modelo']);
-    sheet.getRangeByIndex(row, 8).setText(data['numeroSerie']);
-    sheet.getRangeByIndex(row, 9).setText(data['variableMedida']);
-    sheet.getRangeByIndex(row, 10).setText(data['senalEntradaSalida']);
-    sheet.getRangeByIndex(row, 11).setText(data['rangoLrv']);
-    sheet.getRangeByIndex(row, 12).setText(data['rangoUrv']);
-    sheet.getRangeByIndex(row, 13).setText(data['unidadIngenieria']);
-    sheet.getRangeByIndex(row, 14).setText(data['estadoOperativoObservado']);
-    sheet.getRangeByIndex(row, 15).setText(data['estadoFisicoObservado']);
-    sheet.getRangeByIndex(row, 16).setText(data['observacion']);
-    sheet.getRangeByIndex(row, 17).setText(data['email_creador']);
+    sheet.getRangeByIndex(row, 7).setText(data['marca']);
+    sheet.getRangeByIndex(row, 8).setText(data['modelo']);
+    sheet.getRangeByIndex(row, 9).setText(data['numeroSerie']);
+    sheet.getRangeByIndex(row, 10).setText(data['variableMedida']);
+    sheet.getRangeByIndex(row, 11).setText(data['senalEntradaSalida']);
+    sheet.getRangeByIndex(row, 12).setText(data['rangoLrv']);
+    sheet.getRangeByIndex(row, 13).setText(data['rangoUrv']);
+    sheet.getRangeByIndex(row, 14).setText(data['unidadIngenieria']);
+    sheet.getRangeByIndex(row, 15).setText(data['observacion']);
+    sheet.getRangeByIndex(row, 16).setText(data['email_creador']);
 
     if (data['sincronizadoEn'] != null) {
       final date = DateTime.parse(data['sincronizadoEn']);
-      sheet.getRangeByIndex(row, 18).setText('${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year} ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}');
+      sheet.getRangeByIndex(row, 17).setText('${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year} ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}');
     } else {
-      sheet.getRangeByIndex(row, 18).setText('N/D');
+      sheet.getRangeByIndex(row, 17).setText('N/D');
     }
 
     if (data['ultimaModificacion'] != null) {
       final dateMod = DateTime.parse(data['ultimaModificacion']);
-      sheet.getRangeByIndex(row, 19).setText('${dateMod.day.toString().padLeft(2, '0')}/${dateMod.month.toString().padLeft(2, '0')}/${dateMod.year} ${dateMod.hour.toString().padLeft(2, '0')}:${dateMod.minute.toString().padLeft(2, '0')}');
+      sheet.getRangeByIndex(row, 18).setText('${dateMod.day.toString().padLeft(2, '0')}/${dateMod.month.toString().padLeft(2, '0')}/${dateMod.year} ${dateMod.hour.toString().padLeft(2, '0')}:${dateMod.minute.toString().padLeft(2, '0')}');
     } else {
-      sheet.getRangeByIndex(row, 19).setText('Sin modificaciones');
+      sheet.getRangeByIndex(row, 18).setText('Sin modificaciones');
     }
   }
 

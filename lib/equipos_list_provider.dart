@@ -128,6 +128,18 @@ class EquiposListProvider extends ChangeNotifier {
 
   void removerEquipoLocal(String idDocumento) {
     _equipos.removeWhere((e) => e['id_documento'] == idDocumento);
+    _guardarEnCache();
+    notifyListeners();
+  }
+
+  void agregarOActualizarEquipoLocal(Map<String, dynamic> equipo) {
+    final index = _equipos.indexWhere((e) => e['id_documento'] == equipo['id_documento']);
+    if (index != -1) {
+      _equipos[index] = equipo;
+    } else {
+      _equipos.insert(0, equipo);
+    }
+    _guardarEnCache();
     notifyListeners();
   }
 
@@ -188,45 +200,6 @@ class EquiposListProvider extends ChangeNotifier {
       _cargando = false;
       notifyListeners();
     }
-  }
-
-  Future<Map<String, int>> obtenerEstadisticasOperativas() async {
-    final estados = ['Operativa', 'Detenida', 'En mantenimiento', 'Fuera de servicio', 'Desconocido'];
-    Map<String, int> resultados = {};
-    try {
-      for (var estado in estados) {
-        final snapshot = await FirebaseFirestore.instance
-            .collection('equipos')
-            .where('estadoOperativoObservado', isEqualTo: estado)
-            .count()
-            .get();
-        resultados[estado] = snapshot.count ?? 0;
-      }
-    } catch (e) {
-      debugPrint(e.toString());
-    }
-    return resultados;
-  }
-
-  Future<Map<String, int>> obtenerEstadosCriticos() async {
-    Map<String, int> resultados = {'Malo': 0, 'Requiere reemplazo': 0};
-    try {
-      final snapshotMalo = await FirebaseFirestore.instance
-          .collection('equipos')
-          .where('estadoFisicoObservado', isEqualTo: 'Malo')
-          .count()
-          .get();
-      final snapshotReemplazo = await FirebaseFirestore.instance
-          .collection('equipos')
-          .where('estadoFisicoObservado', isEqualTo: 'Requiere reemplazo')
-          .count()
-          .get();
-      resultados['Malo'] = snapshotMalo.count ?? 0;
-      resultados['Requiere reemplazo'] = snapshotReemplazo.count ?? 0;
-    } catch (e) {
-      debugPrint(e.toString());
-    }
-    return resultados;
   }
 
   Future<Map<String, int>> obtenerConteosPorMacroArea(List<String> areasPlanta) async {

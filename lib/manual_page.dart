@@ -64,7 +64,6 @@ class _ManualPageState extends State<ManualPage> {
                       _isLoadingSearch = false;
                     });
 
-                    // Notifica al usuario si no hubo resultados
                     if (_searchResult.totalInstanceCount == 0 && mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(content: Text('No se encontraron coincidencias en el manual.')),

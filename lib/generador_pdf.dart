@@ -19,10 +19,15 @@ class GeneradorPdf {
       final Uint8List logoBytes = logoData.buffer.asUint8List();
 
       Uint8List? bytesPlaca;
+      Uint8List? bytesPlacaAdicional;
       Uint8List? bytesGeneral;
 
       if (datos['fotoPlacaUrl'] != null) {
         bytesPlaca = await ImageCacheManager.obtenerImagen(datos['fotoPlacaUrl']);
+      }
+      
+      if (datos['fotoPlacaAdicionalUrl'] != null) {
+        bytesPlacaAdicional = await ImageCacheManager.obtenerImagen(datos['fotoPlacaAdicionalUrl']);
       }
 
       if (datos['fotoGeneralUrl'] != null) {
@@ -36,6 +41,7 @@ class GeneradorPdf {
         'familia': datos['familia']?.toString() ?? '',
         'areaProceso': datos['areaProceso']?.toString() ?? '',
         'ubicacionTecnica': datos['ubicacionTecnica']?.toString() ?? '',
+        'marca': datos['marca']?.toString() ?? '',
         'modelo': datos['modelo']?.toString() ?? '',
         'numeroSerie': datos['numeroSerie']?.toString() ?? '',
         'variableMedida': datos['variableMedida']?.toString() ?? '',
@@ -43,8 +49,6 @@ class GeneradorPdf {
         'rangoLrv': datos['rangoLrv']?.toString() ?? '',
         'rangoUrv': datos['rangoUrv']?.toString() ?? '',
         'unidadIngenieria': datos['unidadIngenieria']?.toString() ?? '',
-        'estadoOperativoObservado': datos['estadoOperativoObservado']?.toString() ?? '',
-        'estadoFisicoObservado': datos['estadoFisicoObservado']?.toString() ?? '',
         'observacion': datos['observacion']?.toString() ?? '',
         'email_creador': datos['email_creador']?.toString() ?? '',
         'email_original': datos['email_original']?.toString() ?? '',
@@ -52,6 +56,7 @@ class GeneradorPdf {
         'ultimaModificacion': datos['ultimaModificacion'] != null ? (datos['ultimaModificacion'] as Timestamp).toDate().toIso8601String() : null,
         'logoBytes': logoBytes,
         'bytesPlaca': bytesPlaca,
+        'bytesPlacaAdicional': bytesPlacaAdicional,
         'bytesGeneral': bytesGeneral,
       };
 
@@ -96,6 +101,7 @@ Future<Uint8List> _procesarPdfAislado(Map<String, dynamic> datos) async {
   datos['logoBytes'] = null;
 
   pw.MemoryImage? imgPlaca;
+  pw.MemoryImage? imgPlacaAdicional;
   pw.MemoryImage? imgGeneral;
 
   if (datos['bytesPlaca'] != null) {
@@ -103,6 +109,11 @@ Future<Uint8List> _procesarPdfAislado(Map<String, dynamic> datos) async {
     datos['bytesPlaca'] = null;
   }
   
+  if (datos['bytesPlacaAdicional'] != null) {
+    imgPlacaAdicional = pw.MemoryImage(datos['bytesPlacaAdicional'] as Uint8List);
+    datos['bytesPlacaAdicional'] = null;
+  }
+
   if (datos['bytesGeneral'] != null) {
     imgGeneral = pw.MemoryImage(datos['bytesGeneral'] as Uint8List);
     datos['bytesGeneral'] = null;
@@ -285,6 +296,14 @@ Future<Uint8List> _procesarPdfAislado(Map<String, dynamic> datos) async {
           auditorDisplay = '$auditorName ($auditorEmail)';
         }
 
+        List<pw.Widget> filasAuditoria = [];
+        
+        filasAuditoria.addAll([
+          construirFila('Observaciones', datos['observacion']),
+          construirFila('Auditor', auditorDisplay),
+          construirFila('Fecha de Registro', fechaReg),
+        ]);
+
         return [
           construirSeccion('Información Principal', [
             construirFila('Código (Tag)', datos['codigo']),
@@ -295,25 +314,23 @@ Future<Uint8List> _procesarPdfAislado(Map<String, dynamic> datos) async {
             construirFila('Ubicación Específica', datos['ubicacionTecnica']),
           ]),
           construirSeccion('Datos Técnicos', [
-            construirFila('Marca', datos['modelo']),
+            construirFila('Marca', datos['marca']),
+            construirFila('Modelo', datos['modelo']),
             construirFila('Número de Serie', datos['numeroSerie']),
             construirFila('Variable de Medida', datos['variableMedida']),
             construirFila('Señal E/S', datos['senalEntradaSalida']),
             construirFila('Rango', '${datos['rangoLrv']} ${datos['rangoUrv']} ${datos['unidadIngenieria']}'),
           ]),
-          construirSeccion('Auditoría', [
-            construirFila('Estado Operativo', datos['estadoOperativoObservado']),
-            construirFila('Estado Físico', datos['estadoFisicoObservado']),
-            construirFila('Observaciones', datos['observacion']),
-            construirFila('Auditor', auditorDisplay),
-            construirFila('Fecha de Registro', fechaReg),
-          ]),
+          construirSeccion('Auditoría', filasAuditoria),
           
           if (imgPlaca != null)
             construirBloqueEvidencia('Placa de Características', imgPlaca, true),
+          
+          if (imgPlacaAdicional != null)
+            construirBloqueEvidencia('Placa de Características (Adicional)', imgPlacaAdicional, imgPlaca == null),
             
           if (imgGeneral != null)
-            construirBloqueEvidencia('Estado General del Equipo', imgGeneral, imgPlaca == null),
+            construirBloqueEvidencia('Estado General del Equipo', imgGeneral, imgPlaca == null && imgPlacaAdicional == null),
         ];
       },
     ),

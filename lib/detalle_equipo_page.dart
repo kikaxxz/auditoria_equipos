@@ -40,6 +40,12 @@ class DetalleEquipoPage extends StatelessWidget {
           await ImageCacheManager.eliminarImagen(datos['fotoPlacaUrl']);
         } catch (_) {}
       }
+      if (datos['fotoPlacaAdicionalUrl'] != null) {
+        try {
+          await SincronizacionService().eliminarImagenDrive(datos['fotoPlacaAdicionalUrl']);
+          await ImageCacheManager.eliminarImagen(datos['fotoPlacaAdicionalUrl']);
+        } catch (_) {}
+      }
       if (datos['fotoGeneralUrl'] != null) {
         try {
           await SincronizacionService().eliminarImagenDrive(datos['fotoGeneralUrl']);
@@ -125,45 +131,97 @@ class DetalleEquipoPage extends StatelessWidget {
     
     final result = await Navigator.push(
       context,
-      MaterialPageRoute(builder: (context) => const FormularioEquipoPage()),
+      MaterialPageRoute(builder: (context) => FormularioEquipoPage(rolUsuario: rolUsuario)),
     );
     
     if (result == true && context.mounted) {
+      try {
+        await FirebaseFirestore.instance.collection('equipos').doc(documentId).update({
+          'ultima_modificacion': FieldValue.serverTimestamp(),
+          'modificado_por': FirebaseAuth.instance.currentUser?.email ?? 'Usuario desconocido',
+        });
+      } catch (_) {}
+
       final listProvider = Provider.of<EquiposListProvider>(context, listen: false);
       listProvider.cargarEquiposPorArea(datos['areaProceso'] ?? '', reiniciar: true);
-      Navigator.of(context).pop(true);
+      
+      if (context.mounted) {
+        Navigator.of(context).pop(true);
+      }
     }
+  }
+
+  String _formatearFecha(dynamic timestamp) {
+    if (timestamp == null) return 'Pendiente de revisión';
+    if (timestamp is Timestamp) {
+      final date = timestamp.toDate();
+      final dia = date.day.toString().padLeft(2, '0');
+      final mes = date.month.toString().padLeft(2, '0');
+      final anio = date.year;
+      final hora = date.hour.toString().padLeft(2, '0');
+      final minuto = date.minute.toString().padLeft(2, '0');
+      return '$dia/$mes/$anio $hora:$minuto';
+    }
+    return timestamp.toString();
   }
 
   Widget _buildFilaDato(String etiqueta, String valor) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6.0),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            flex: 2,
-            child: Text(
-              etiqueta,
-              style: const TextStyle(
-                fontWeight: FontWeight.w600,
-                color: Color(0xFF5F6368),
-                fontSize: 13,
-              ),
-            ),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            flex: 3,
-            child: Text(
-              valor.isEmpty ? 'N/D' : valor,
-              style: const TextStyle(
-                color: Color(0xFF1A1C1E),
-                fontSize: 14,
-              ),
-            ),
-          ),
-        ],
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          if (constraints.maxWidth < 400) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  etiqueta,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF5F6368),
+                    fontSize: 13,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  valor.isEmpty ? 'N/D' : valor,
+                  style: const TextStyle(
+                    color: Color(0xFF1A1C1E),
+                    fontSize: 14,
+                  ),
+                ),
+              ],
+            );
+          } else {
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  flex: 2,
+                  child: Text(
+                    etiqueta,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF5F6368),
+                      fontSize: 13,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  flex: 4,
+                  child: Text(
+                    valor.isEmpty ? 'N/D' : valor,
+                    style: const TextStyle(
+                      color: Color(0xFF1A1C1E),
+                      fontSize: 14,
+                    ),
+                  ),
+                ),
+              ],
+            );
+          }
+        },
       ),
     );
   }
@@ -214,7 +272,7 @@ class DetalleEquipoPage extends StatelessWidget {
       docOriginal == currentEmail
     );
     
-    final bool tienePermisos = rolUsuario == 'admin' || esPropietario;
+    final bool tienePermisosEliminar = rolUsuario == 'admin' || esPropietario;
 
     return Scaffold(
       backgroundColor: const Color(0xFFF5F6F7),
@@ -235,14 +293,17 @@ class DetalleEquipoPage extends StatelessWidget {
           children: [
             _buildSeccionTarjeta('Información Principal', [
               _buildFilaDato('Código (Tag)', datos['codigo'] ?? ''),
-              _buildFilaDato('Nombre del Equipo', datos['descripcion'] ?? ''),
+              _buildFilaDato('Nombre en Sistema', datos['nombre'] ?? ''),
+              _buildFilaDato('Descripción', datos['descripcion'] ?? ''),
               _buildFilaDato('Equipo Padre', datos['equipoPadre'] ?? ''),
               _buildFilaDato('Familia', datos['familia'] ?? ''),
               _buildFilaDato('Área de Proceso', datos['areaProceso'] ?? ''),
               _buildFilaDato('Ubicación Específica', datos['ubicacionTecnica'] ?? ''),
+              _buildFilaDato('Centro de Costo', datos['centro_costo'] ?? ''),
             ]),
             _buildSeccionTarjeta('Especificaciones Técnicas', [
-              _buildFilaDato('Marca', datos['modelo'] ?? ''),
+              _buildFilaDato('Marca', (datos['fabricante']?.toString().isNotEmpty == true ? datos['fabricante'] : datos['marca']) ?? ''),
+              _buildFilaDato('Modelo', datos['modelo'] ?? ''),
               _buildFilaDato('Número de Serie', datos['numeroSerie'] ?? ''),
               _buildFilaDato('Variable Medida', datos['variableMedida'] ?? ''),
               _buildFilaDato('Señal E/S', datos['senalEntradaSalida'] ?? ''),
@@ -251,9 +312,11 @@ class DetalleEquipoPage extends StatelessWidget {
               _buildFilaDato('Unidad', datos['unidadIngenieria'] ?? ''),
             ]),
             _buildSeccionTarjeta('Estado y Registro', [
-              _buildFilaDato('Estado Operativo', datos['estadoOperativoObservado'] ?? ''),
-              _buildFilaDato('Estado Físico', datos['estadoFisicoObservado'] ?? ''),
+              _buildFilaDato('Última Modificación', _formatearFecha(datos['ultima_modificacion'])),
+              _buildFilaDato('Plan de Tareas', datos['plan_tareas'] ?? ''),
               _buildFilaDato('Observaciones', datos['observacion'] ?? ''),
+              _buildFilaDato('Supervisor o Encargado', datos['supervisor'] ?? ''),
+              _buildFilaDato('Notas Importadas', datos['notas'] ?? ''),
               _buildFilaDato(
                 'Registrado por', 
                 (datos['nombre_creador'] != null && datos['nombre_creador'].toString().trim().isNotEmpty) 
@@ -261,7 +324,7 @@ class DetalleEquipoPage extends StatelessWidget {
                     : (datos['email_creador'] ?? 'No registrado')
               ),
             ]),
-            if (datos['fotoPlacaUrl'] != null || datos['fotoGeneralUrl'] != null)
+            if (datos['fotoPlacaUrl'] != null || datos['fotoPlacaAdicionalUrl'] != null || datos['fotoGeneralUrl'] != null)
               _buildSeccionTarjeta('Evidencia Visual', [
                 if (datos['fotoPlacaUrl'] != null)
                   Column(
@@ -273,6 +336,21 @@ class DetalleEquipoPage extends StatelessWidget {
                         borderRadius: BorderRadius.circular(8),
                         child: ImagenDriveWidget(
                           fileId: datos['fotoPlacaUrl'],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+                  ),
+                if (datos['fotoPlacaAdicionalUrl'] != null)
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('Placa Técnica (Adicional)', style: TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF5F6368))),
+                      const SizedBox(height: 8),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: ImagenDriveWidget(
+                          fileId: datos['fotoPlacaAdicionalUrl'],
                         ),
                       ),
                       const SizedBox(height: 16),
@@ -296,48 +374,48 @@ class DetalleEquipoPage extends StatelessWidget {
           ],
         ),
       ),
-      bottomNavigationBar: tienePermisos
-        ? SafeArea(
-            child: Container(
-              padding: const EdgeInsets.all(16.0),
-              decoration: const BoxDecoration(
-                color: Color(0xFFFFFFFF),
-                border: Border(top: BorderSide(color: Color(0xFFD9D9D9))),
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: const Color(0xFFDC362E),
-                        side: const BorderSide(color: Color(0xFFDC362E)),
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      ),
-                      onPressed: () => _confirmarEliminacion(context),
-                      icon: const Icon(Icons.delete_outline),
-                      label: const Text('ELIMINAR', style: TextStyle(fontWeight: FontWeight.w700)),
+      bottomNavigationBar: SafeArea(
+        child: Container(
+          padding: const EdgeInsets.all(16.0),
+          decoration: const BoxDecoration(
+            color: Color(0xFFFFFFFF),
+            border: Border(top: BorderSide(color: Color(0xFFD9D9D9))),
+          ),
+          child: Row(
+            children: [
+              if (tienePermisosEliminar) ...[
+                Expanded(
+                  child: OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFFDC362E),
+                      side: const BorderSide(color: Color(0xFFDC362E)),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     ),
+                    onPressed: () => _confirmarEliminacion(context),
+                    icon: const Icon(Icons.delete_outline),
+                    label: const Text('ELIMINAR', style: TextStyle(fontWeight: FontWeight.w700)),
                   ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF1F5C3D),
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      ),
-                      onPressed: () => _editarEquipo(context),
-                      icon: const Icon(Icons.edit),
-                      label: const Text('EDITAR', style: TextStyle(fontWeight: FontWeight.w700)),
-                    ),
+                ),
+                const SizedBox(width: 16),
+              ],
+              Expanded(
+                child: ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF1F5C3D),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
-                ],
+                  onPressed: () => _editarEquipo(context),
+                  icon: const Icon(Icons.edit),
+                  label: const Text('EDITAR', style: TextStyle(fontWeight: FontWeight.w700)),
+                ),
               ),
-            ),
-          )
-        : null,
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
