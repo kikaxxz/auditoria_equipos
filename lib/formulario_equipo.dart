@@ -4,12 +4,11 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'equipo_form_provider.dart';
-import 'equipos_list_provider.dart';
 import 'configuracion_provider.dart';
 
 const Color _isaPrimary = Color(0xFF1F5C3D);
 const Color _isaBackground = Color(0xFFF5F6F7);
-const Color _isaSurface = Color(0xFFFFFFFF);
+const Color _isaSurface = Color(0xFFFFFFFF);  
 const Color _isaTextPrimary = Color(0xFF1A1C1E);
 const Color _isaTextSecondary = Color(0xFF5F6368);
 const Color _isaDivider = Color(0xFFD9D9D9);
@@ -28,7 +27,7 @@ class _FormularioEquipoPageState extends State<FormularioEquipoPage> {
   bool _hayConexion = true;
   late StreamSubscription<List<ConnectivityResult>> _connectivitySub;
 
-  bool get isAdmin => widget.rolUsuario == 'admin';
+  bool get tienePrivilegios => ['admin', 'supervisor'].contains(widget.rolUsuario);
 
   @override
   void initState() {
@@ -353,18 +352,19 @@ class _FormularioEquipoPageState extends State<FormularioEquipoPage> {
                       );
 
                       try {
-                          await provider.guardarLevantamientoFinal().timeout(const Duration(seconds: 15));
+                          await provider.guardarLevantamientoFinal(rolUsuario: widget.rolUsuario);
 
                           if (context.mounted) {
                             Navigator.of(context).pop();
                             Navigator.of(context).pop(true);
                             
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Registro procesado exitosamente.'),
-                                backgroundColor: Color(0xFF1F5C3D),
-                              ),
-                            );
+                            final requiereAprobacion = !tienePrivilegios;
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(requiereAprobacion ? 'Registro enviado a revisión exitosamente.' : 'Registro procesado exitosamente.'),
+                                  backgroundColor: const Color(0xFF1F5C3D),
+                                ),
+                              );
                           }
                         } on TimeoutException {
                           if (context.mounted) {
@@ -407,10 +407,18 @@ class _FormularioEquipoPageState extends State<FormularioEquipoPage> {
                                   height: 20,
                                   child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
                                 )
-                              : Icon(isLastStep ? (_hayConexion ? Icons.cloud_upload : Icons.save_alt) : Icons.arrow_forward),
+                              : Icon(isLastStep 
+                                  ? (_hayConexion 
+                                      ? (!tienePrivilegios ? Icons.send : Icons.cloud_upload) 
+                                      : Icons.save_alt) 
+                                  : Icons.arrow_forward),
                           label: Text(
                             isLastStep 
-                                ? (provider.guardandoEnRed ? 'SINCRONIZANDO...' : (_hayConexion ? 'GUARDAR Y SINCRONIZAR' : 'GUARDAR LOCALMENTE')) 
+                                ? (provider.guardandoEnRed 
+                                    ? 'PROCESANDO...' 
+                                    : (_hayConexion 
+                                        ? (!tienePrivilegios ? 'ENVIAR A REVISIÓN' : 'GUARDAR Y SINCRONIZAR')
+                                        : 'GUARDAR LOCALMENTE')) 
                                 : 'SIGUIENTE',
                             style: const TextStyle(fontWeight: FontWeight.w600, letterSpacing: 0.5),
                           ),
@@ -471,7 +479,7 @@ class _FormularioEquipoPageState extends State<FormularioEquipoPage> {
                             TextFormField(
                               initialValue: provider.nombre,
                               maxLines: 2,
-                              decoration: _buildInputDeco('Nombre en Sistema', Icons.badge, 'Nombre alterno según base de datos'),
+                              decoration: _buildInputDeco('Nombre del equipo', Icons.badge, 'Nombre de identificación común'),
                               onChanged: (val) => provider.updateField('nombre', val),
                             ),
                             const SizedBox(height: 16),
@@ -520,7 +528,7 @@ class _FormularioEquipoPageState extends State<FormularioEquipoPage> {
                             const SizedBox(height: 16),
                             DropdownButtonFormField<String>(
                               isExpanded: true,
-                              value: config.familias.contains(provider.familia) ? provider.familia : null,
+                              initialValue: config.familias.contains(provider.familia) ? provider.familia : null,
                               decoration: _buildInputDeco('Familia del Equipo', Icons.category),
                               dropdownColor: _isaSurface,
                               items: config.familias.map((String familiaItem) {
@@ -550,9 +558,9 @@ class _FormularioEquipoPageState extends State<FormularioEquipoPage> {
                             const SizedBox(height: 16),
                             TextFormField(
                               initialValue: provider.centroCosto,
-                              readOnly: !isAdmin,
-                              decoration: _buildInputDeco('Centro de Costo', Icons.monetization_on, 'Ej. 1411 - COGENERACION', !isAdmin),
-                              onChanged: isAdmin ? (val) => provider.updateField('centro_costo', val) : null,
+                              readOnly: !tienePrivilegios,
+                              decoration: _buildInputDeco('Centro de Costo', Icons.monetization_on, 'Ej. 1411 - COGENERACION', !tienePrivilegios),
+                              onChanged: tienePrivilegios ? (val) => provider.updateField('centro_costo', val) : null,
                             ),
                           ],
                         ),
@@ -674,17 +682,17 @@ class _FormularioEquipoPageState extends State<FormularioEquipoPage> {
                             _buildResponsiveRow([
                               TextFormField(
                                 initialValue: provider.supervisor,
-                                readOnly: !isAdmin,
-                                decoration: _buildInputDeco('Supervisor / Clasificación', Icons.person, 'Encargado del equipo', !isAdmin),
-                                onChanged: isAdmin ? (val) => provider.updateField('supervisor', val) : null,
+                                readOnly: !tienePrivilegios,
+                                decoration: _buildInputDeco('Supervisor / Clasificación', Icons.person, 'Encargado del equipo', !tienePrivilegios),
+                                onChanged: tienePrivilegios ? (val) => provider.updateField('supervisor', val) : null,
                               ),
                             ]),
                             const SizedBox(height: 16),
                             TextFormField(
                               initialValue: provider.planTareas,
-                              readOnly: !isAdmin,
-                              decoration: _buildInputDeco('Plan de Tareas', Icons.assignment, 'Ej. PLAN DE MTTO', !isAdmin),
-                              onChanged: isAdmin ? (val) => provider.updateField('plan_tareas', val) : null,
+                              readOnly: !tienePrivilegios,
+                              decoration: _buildInputDeco('Plan de Tareas', Icons.assignment, 'Ej. PLAN DE MTTO', !tienePrivilegios),
+                              onChanged: tienePrivilegios ? (val) => provider.updateField('plan_tareas', val) : null,
                             ),
                             const SizedBox(height: 16),
                             TextFormField(

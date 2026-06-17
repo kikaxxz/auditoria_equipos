@@ -123,17 +123,22 @@ class _EquiposAreaPageState extends State<EquiposAreaPage> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          nombrePrincipal,
-                          style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w700,
-                            color: Color(0xFF1F5C3D),
+                        Tooltip(
+                          message: nombrePrincipal,
+                          waitDuration: const Duration(milliseconds: 400),
+                          child: Text(
+                            nombrePrincipal,
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF1F5C3D),
+                              height: 1.2,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
                           ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
                         ),
-                        const SizedBox(height: 4),
+                        const SizedBox(height: 6),
                         Row(
                           children: [
                             const Icon(Icons.business, size: 14, color: Color(0xFF5F6368)),
@@ -279,7 +284,7 @@ class _EquiposAreaPageState extends State<EquiposAreaPage> {
 
                 return LayoutBuilder(
                   builder: (context, constraints) {
-                    if (constraints.maxWidth < 600) {
+                    if (constraints.maxWidth < 700) {
                       return RefreshIndicator(
                         color: const Color(0xFF1F5C3D),
                         backgroundColor: const Color(0xFFFFFFFF),
@@ -326,8 +331,13 @@ class _EquiposAreaPageState extends State<EquiposAreaPage> {
                             crossAxisSpacing: 16,
                             mainAxisSpacing: 16,
                           ),
-                          itemCount: provider.equipos.length,
+                          itemCount: provider.equipos.length + (provider.hayMas ? 1 : 0),
                           itemBuilder: (context, index) {
+                            if (index == provider.equipos.length) {
+                              return const Center(
+                                child: CircularProgressIndicator(color: Color(0xFF1F5C3D)),
+                              );
+                            }
                             final data = provider.equipos[index];
                             return _buildEquipoCard(data, data['id_documento']);
                           },
@@ -341,7 +351,7 @@ class _EquiposAreaPageState extends State<EquiposAreaPage> {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
+      floatingActionButton: widget.rol == 'consultor' ? null : FloatingActionButton.extended(
         onPressed: () {
           final formProvider = Provider.of<EquipoFormProvider>(context, listen: false);
           formProvider.resetForm();

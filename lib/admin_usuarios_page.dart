@@ -67,6 +67,8 @@ class _AdminUsuariosPageState extends State<AdminUsuariosPage> {
                   items: const [
                     DropdownMenuItem(value: 'tecnico', child: Text('Técnico')),
                     DropdownMenuItem(value: 'admin', child: Text('Administrador')),
+                    DropdownMenuItem(value: 'supervisor', child: Text('Supervisor')),
+                    DropdownMenuItem(value: 'consultor', child: Text('Consultor')),
                   ],
                   onChanged: (val) {
                     if (val != null) setState(() => _nuevoRol = val);
@@ -143,6 +145,35 @@ class _AdminUsuariosPageState extends State<AdminUsuariosPage> {
       },
     );
   }
+
+  IconData _obtenerIconoRol(String rol) {
+  switch (rol) {
+    case 'admin':
+      return Icons.admin_panel_settings;
+    case 'supervisor':
+      return Icons.fact_check;
+    case 'consultor':
+      return Icons.visibility;
+    case 'tecnico':
+    default:
+      return Icons.engineering;
+  }
+}
+
+Color _obtenerColorRol(String rol) {
+  switch (rol) {
+    case 'admin':
+      return const Color(0xFF1F5C3D);
+    case 'supervisor':
+      return const Color(0xFFA6C85A);
+    case 'consultor':
+      return const Color(0xFF2F7A4F);
+    case 'tecnico':
+    default:
+      return const Color(0xFF5F6368);
+  }
+}
+
 
   @override
   Widget build(BuildContext context) {
@@ -225,66 +256,68 @@ class _AdminUsuariosPageState extends State<AdminUsuariosPage> {
                       itemCount: filtrados.length,
                       separatorBuilder: (context, index) => const SizedBox(height: 12),
                       itemBuilder: (context, index) {
-                        final email = filtrados[index].id;
-                        final data = filtrados[index].data() as Map<String, dynamic>;
-                        final rol = data['rol'] ?? 'Desconocido';
-                        final nombreCompleto = data['nombre_completo'] as String?;
-                        final esAdmin = rol == 'admin';
+                      final email = filtrados[index].id;
+                      final data = filtrados[index].data() as Map<String, dynamic>;
+                      final rol = data['rol'] ?? 'tecnico';
+                      final nombreCompleto = data['nombre_completo'] as String?;
 
-                        final String titulo = (nombreCompleto != null && nombreCompleto.trim().isNotEmpty) 
-                            ? nombreCompleto 
-                            : 'Pendiente de registro';
+                      final String titulo = (nombreCompleto != null && nombreCompleto.trim().isNotEmpty) 
+                          ? nombreCompleto 
+                          : 'Pendiente de registro';
 
-                        return Card(
-                          elevation: 0,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            side: const BorderSide(color: Color(0xFFD9D9D9)),
+                      final colorRol = _obtenerColorRol(rol);
+                      final iconoRol = _obtenerIconoRol(rol);
+
+                      return Card(
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          side: const BorderSide(color: Color(0xFFD9D9D9)),
+                        ),
+                        child: ListTile(
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          leading: CircleAvatar(
+                            backgroundColor: colorRol.withValues(alpha: 0.1),
+                            child: Icon(
+                              iconoRol, 
+                              color: colorRol,
+                            ),
                           ),
-                          child: ListTile(
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                            leading: CircleAvatar(
-                              backgroundColor: esAdmin ? const Color(0xFF1F5C3D).withValues(alpha: 0.1) : const Color(0xFF5F6368).withValues(alpha: 0.1),
-                              child: Icon(
-                                esAdmin ? Icons.admin_panel_settings : Icons.engineering, 
-                                color: esAdmin ? const Color(0xFF1F5C3D) : const Color(0xFF5F6368)
-                              ),
-                            ),
-                            title: Text(
-                              titulo, 
-                              style: const TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF1A1C1E))
-                            ),
-                            subtitle: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const SizedBox(height: 4),
-                                Text(email, style: const TextStyle(color: Color(0xFF5F6368), fontSize: 13)),
-                                const SizedBox(height: 6),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                                  decoration: BoxDecoration(
-                                    color: esAdmin ? const Color(0xFF1F5C3D).withValues(alpha: 0.1) : const Color(0xFF5F6368).withValues(alpha: 0.1),
-                                    borderRadius: BorderRadius.circular(4),
-                                  ),
-                                  child: Text(
-                                    rol.toUpperCase(), 
-                                    style: TextStyle(
-                                      color: esAdmin ? const Color(0xFF1F5C3D) : const Color(0xFF5F6368),
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.w800,
-                                      letterSpacing: 0.5
-                                    )
-                                  ),
+                          title: Text(
+                            titulo, 
+                            style: const TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF1A1C1E))
+                          ),
+                          subtitle: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const SizedBox(height: 4),
+                              Text(email, style: const TextStyle(color: Color(0xFF5F6368), fontSize: 13)),
+                              const SizedBox(height: 6),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                decoration: BoxDecoration(
+                                  color: colorRol.withValues(alpha: 0.1),
+                                  borderRadius: BorderRadius.circular(4),
                                 ),
-                              ],
-                            ),
-                            trailing: IconButton(
-                              icon: const Icon(Icons.delete_outline, color: Color(0xFFDC362E)),
-                              onPressed: () => _eliminarUsuario(email),
-                            ),
+                                child: Text(
+                                  rol.toUpperCase(), 
+                                  style: TextStyle(
+                                    color: colorRol,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: 0.5
+                                  )
+                                ),
+                              ),
+                            ],
                           ),
-                        );
-                      },
+                          trailing: IconButton(
+                            icon: const Icon(Icons.delete_outline, color: Color(0xFFDC362E)),
+                            onPressed: () => _eliminarUsuario(email),
+                          ),
+                        ),
+                      );
+                    },
                     );
                   },
                 ),

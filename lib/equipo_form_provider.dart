@@ -141,7 +141,7 @@ class EquipoFormProvider extends ChangeNotifier {
     }
   }
 
-  Future<void> guardarLevantamientoFinal() async {
+  Future<void> guardarLevantamientoFinal({required String rolUsuario}) async {
     guardandoEnRed = true;
     notifyListeners();
 
@@ -149,8 +149,10 @@ class EquipoFormProvider extends ChangeNotifier {
     final String idFinal = idLevantamientoTemporal ?? const Uuid().v4();
     final String emailActual = FirebaseAuth.instance.currentUser?.email ?? 'Desconocido';
     final String creadorFinal = _nombreAuditor.isNotEmpty ? _nombreAuditor : emailActual;
+    final String idTransaccion = const Uuid().v4();
 
     final datos = {
+      'id_transaccion': idTransaccion,
       'id_levantamiento': idFinal,
       'es_edicion': esEdicion,
       'codigo': codigo,
@@ -183,10 +185,12 @@ class EquipoFormProvider extends ChangeNotifier {
       'uid_creador': uidCreadorExistente,
       'email_creador': esEdicion ? emailCreadorExistente : creadorFinal,
       'email_original': emailActual,
+      'rol_usuario': rolUsuario,
+      'tipo_operacion': esEdicion ? 'modificacion' : 'creacion',
     };
 
     try {
-      final exito = await SincronizacionService().sincronizarRegistroInmediato(datos).timeout(const Duration(seconds: 10));
+      final exito = await SincronizacionService().sincronizarRegistroInmediato(datos);
       if (!exito) {
         _pendientes.add(datos);
       }

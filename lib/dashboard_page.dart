@@ -7,10 +7,10 @@ import 'package:provider/provider.dart';
 import 'equipos_area_page.dart';
 import 'configuracion_provider.dart';
 import 'admin_usuarios_page.dart';
-import 'equipos_list_provider.dart';
 import 'detalle_equipo_page.dart';
 import 'manual_page.dart';
 import 'Configuracion.dart';
+import 'equipos_aprobar_page.dart';
 
 class DashboardPage extends StatefulWidget {
   final String rol;
@@ -37,7 +37,6 @@ class _DashboardPageState extends State<DashboardPage> {
   Map<String, dynamic> _conteosAreasGlobales = {};
   bool _cargandoConteos = true;
 
-  final ScrollController _scrollController = ScrollController();
   DocumentSnapshot? _ultimoDocumento;
   bool _hayMasDatos = true;
   bool _cargandoMas = false;
@@ -49,13 +48,7 @@ class _DashboardPageState extends State<DashboardPage> {
     super.initState();
     _cargarConteosAreas();
 
-    _scrollController.addListener(() {
-      if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 200) {
-        _cargarDatosPaginados();
-      }
-    });
-
-    if (widget.rol == 'admin') {
+    if (widget.rol == 'admin' || widget.rol == 'supervisor') {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _cargarEstadisticasGlobales();
         _cargarDatosPaginados(recargar: true);
@@ -66,7 +59,6 @@ class _DashboardPageState extends State<DashboardPage> {
   @override
   void dispose() {
     _conteosSubscription?.cancel();
-    _scrollController.dispose();
     super.dispose();
   }
 
@@ -420,57 +412,46 @@ class _DashboardPageState extends State<DashboardPage> {
   }
 
   Widget _buildDashboardInteractivaView(ConfiguracionProvider config) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          _buildSummaryCardsRow(),
-          const SizedBox(height: 16),
-          Container(
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: const Color(0xFFD9D9D9)),
-              boxShadow: [
-                BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, 4)),
-              ],
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.all(20.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Lista Detallada de Equipos',
-                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1A1C1E)),
-                      ),
-                      const SizedBox(height: 4),
-                      const Text(
-                        'Utilice los filtros para realizar búsquedas específicas en la base de datos.',
-                        style: TextStyle(fontSize: 13, color: Color(0xFF5F6368)),
-                      ),
-                      const SizedBox(height: 16),
-                      _buildFiltersGrid(config),
-                    ],
+    return NestedScrollView(
+      headerSliverBuilder: (BuildContext context, bool innerBoxIsScrolled) {
+        return [
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _buildSummaryCardsRow(),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Lista Detallada de Equipos',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1A1C1E)),
                   ),
-                ),
-                
-                const Divider(height: 1, color: Color(0xFFD9D9D9)),
-                
-                _isLoadingTable
-                    ? const Padding(
-                        padding: EdgeInsets.all(40.0),
-                        child: Center(child: CircularProgressIndicator(color: Color(0xFF1F5C3D))),
-                      )
-                    : _buildDataTable(),
-              ],
+                  const SizedBox(height: 4),
+                  const Text(
+                    'Utilice los filtros para realizar búsquedas específicas en la base de datos.',
+                    style: TextStyle(fontSize: 13, color: Color(0xFF5F6368)),
+                  ),
+                  const SizedBox(height: 16),
+                  _buildFiltersGrid(config),
+                ],
+              ),
             ),
           ),
-        ],
+        ];
+      },
+      body: Container(
+        color: Colors.white,
+        child: Column(
+          children: [
+            const Divider(height: 1, color: Color(0xFFD9D9D9)),
+            Expanded(
+              child: _isLoadingTable
+                  ? const Center(child: CircularProgressIndicator(color: Color(0xFF1F5C3D)))
+                  : _buildOptimizedDataTable(),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -603,114 +584,277 @@ class _DashboardPageState extends State<DashboardPage> {
     );
   }
 
-  Widget _buildDataTable() {
+  Widget _buildOptimizedDataTable() {
     if (_filteredDashboardData.isEmpty) {
-      return const Padding(
-        padding: EdgeInsets.all(40.0),
-        child: Center(
-          child: Text(
-            'No se encontraron equipos. Comience a buscar o ajuste los filtros.',
-            style: TextStyle(color: Color(0xFF5F6368), fontSize: 15),
-          ),
+      return const Center(
+        child: Text(
+          'No se encontraron equipos.',
+          style: TextStyle(color: Color(0xFF5F6368), fontSize: 15),
         ),
       );
     }
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        return SingleChildScrollView(
-          controller: _scrollController,
-          scrollDirection: Axis.horizontal,
-          child: ConstrainedBox(
-            constraints: BoxConstraints(minWidth: constraints.maxWidth),
-            child: DataTable(
-              headingRowColor: WidgetStateProperty.all(const Color(0xFFF9FAFB)),
-              dataRowMaxHeight: 70,
-              columnSpacing: 24,
-              horizontalMargin: 20,
-              dividerThickness: 0.5,
-              columns: const [
-                DataColumn(label: Text('Tag (Código)', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF5F6368)))),
-                DataColumn(label: Text('Nombre en Sistema', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF5F6368)))),
-                DataColumn(label: Text('Macro Área', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF5F6368)))),
-                DataColumn(label: Text('Fabricante / Modelo', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF5F6368)))),
-                DataColumn(label: Text('Ubicación Específica', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF5F6368)))),
-                DataColumn(label: Text('Acción', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF5F6368)))),
-              ],
-              rows: [
-                ..._filteredDashboardData.map((data) {
-                  final macroArea = (data['areaProceso'] as String?)?.split(' / ').first ?? 'N/A';
-                  
-                  String ubicacionCompleta = data['ubicacionTecnica'] ?? '';
-                  String ubicacionEspecifica = 'N/A';
-                  if (ubicacionCompleta.isNotEmpty) {
-                    final partes = ubicacionCompleta.split('/').where((s) => s.trim().isNotEmpty).toList();
-                    if (partes.length >= 2) {
-                      ubicacionEspecifica = partes[partes.length - 2].trim();
-                    } else if (partes.isNotEmpty) {
-                      ubicacionEspecifica = partes.last.trim();
-                    }
-                  }
+        final bool isMobile = constraints.maxWidth < 700;
 
-                  String fabricante = data['fabricante']?.toString().trim() ?? '';
-                  String modelo = data['modelo']?.toString().trim() ?? '';
-                  String fabricanteModelo = 'N/A';
-                  if (fabricante.isNotEmpty && modelo.isNotEmpty) {
-                    fabricanteModelo = '$fabricante - $modelo';
-                  } else if (fabricante.isNotEmpty) {
-                    fabricanteModelo = fabricante;
-                  } else if (modelo.isNotEmpty) {
-                    fabricanteModelo = modelo;
-                  }
-
-                  String nombrePrincipal = data['nombre']?.toString().trim() ?? '';
-                  if (nombrePrincipal.isEmpty) {
-                    nombrePrincipal = data['descripcion']?.toString().trim() ?? 'Sin nombre';
-                  }
-
-                  return DataRow(
-                    cells: [
-                      DataCell(Text(data['codigo'] ?? 'N/A', style: const TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF1A1C1E)))),
-                      DataCell(
-                        SizedBox(
-                          width: 250,
-                          child: Text(nombrePrincipal, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Color(0xFF1A1C1E))),
-                        ),
-                      ),
-                      DataCell(Text(macroArea, style: const TextStyle(color: Color(0xFF5F6368)))),
-                      DataCell(Text(fabricanteModelo, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Color(0xFF5F6368)))),
-                      DataCell(Text(ubicacionEspecifica, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Color(0xFF5F6368)))),
-                      DataCell(
-                        IconButton(
-                          icon: const Icon(Icons.remove_red_eye, color: Color(0xFF1F5C3D), size: 22),
-                          tooltip: 'Ver Detalles',
-                          splashRadius: 24,
-                          onPressed: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => DetalleEquipoPage(
-                                  documentId: data['id_documento'],
-                                  datos: data,
-                                  rolUsuario: widget.rol,
-                                ),
-                              ),
-                            );
-                          },
-                        ),
-                      ),
-                    ],
+        if (isMobile) {
+          return NotificationListener<ScrollNotification>(
+            onNotification: (ScrollNotification scrollInfo) {
+              if (scrollInfo.metrics.pixels >= scrollInfo.metrics.maxScrollExtent - 200) {
+                _cargarDatosPaginados();
+              }
+              return false;
+            },
+            child: ListView.builder(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              itemCount: _filteredDashboardData.length + (_cargandoMas ? 1 : 0),
+              itemBuilder: (context, index) {
+                if (index == _filteredDashboardData.length) {
+                  return const Padding(
+                    padding: EdgeInsets.all(16.0),
+                    child: Center(child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF1F5C3D))),
                   );
-                }),
-                if (_cargandoMas)
-                  const DataRow(cells: [
-                    DataCell(SizedBox.shrink()),
-                    DataCell(SizedBox.shrink()),
-                    DataCell(CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF1F5C3D))),
-                    DataCell(SizedBox.shrink()),
-                    DataCell(SizedBox.shrink()),
-                    DataCell(SizedBox.shrink()),
-                  ]),
+                }
+
+                final data = _filteredDashboardData[index];
+                final macroArea = (data['areaProceso'] as String?)?.split(' / ').first ?? 'N/A';
+
+                String ubicacionCompleta = data['ubicacionTecnica'] ?? '';
+                String ubicacionEspecifica = 'N/A';
+                if (ubicacionCompleta.isNotEmpty) {
+                  final partes = ubicacionCompleta.split('/').where((s) => s.trim().isNotEmpty).toList();
+                  if (partes.length >= 2) {
+                    ubicacionEspecifica = partes[partes.length - 2].trim();
+                  } else if (partes.isNotEmpty) {
+                    ubicacionEspecifica = partes.last.trim();
+                  }
+                }
+
+                String fabricante = data['fabricante']?.toString().trim() ?? '';
+                String modelo = data['modelo']?.toString().trim() ?? '';
+                String fabricanteModelo = 'N/A';
+                if (fabricante.isNotEmpty && modelo.isNotEmpty) {
+                  fabricanteModelo = '$fabricante - $modelo';
+                } else if (fabricante.isNotEmpty) {
+                  fabricanteModelo = fabricante;
+                } else if (modelo.isNotEmpty) {
+                  fabricanteModelo = modelo;
+                }
+
+                String nombrePrincipal = data['nombre']?.toString().trim() ?? '';
+                if (nombrePrincipal.isEmpty) {
+                  nombrePrincipal = data['descripcion']?.toString().trim() ?? 'Sin nombre';
+                }
+
+                return Card(
+                  margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    side: const BorderSide(color: Color(0xFFD9D9D9), width: 0.8),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF1F5C3D).withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Text(
+                                data['codigo'] ?? 'N/A',
+                                style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1F5C3D), fontSize: 12),
+                              ),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.remove_red_eye, color: Color(0xFF1F5C3D), size: 24),
+                              splashRadius: 24,
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(),
+                              onPressed: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => DetalleEquipoPage(
+                                      documentId: data['id_documento'],
+                                      datos: data,
+                                      rolUsuario: widget.rol,
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          nombrePrincipal,
+                          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15, color: Color(0xFF1A1C1E)),
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            const Icon(Icons.business, size: 16, color: Color(0xFF5F6368)),
+                            const SizedBox(width: 6),
+                            Expanded(child: Text(macroArea, style: const TextStyle(fontSize: 13, color: Color(0xFF5F6368)))),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            const Icon(Icons.location_on, size: 16, color: Color(0xFF5F6368)),
+                            const SizedBox(width: 6),
+                            Expanded(child: Text(ubicacionEspecifica, style: const TextStyle(fontSize: 13, color: Color(0xFF5F6368)))),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            const Icon(Icons.precision_manufacturing, size: 16, color: Color(0xFF5F6368)),
+                            const SizedBox(width: 6),
+                            Expanded(child: Text(fabricanteModelo, style: const TextStyle(fontSize: 13, color: Color(0xFF5F6368)))),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          );
+        }
+
+        final double minTableWidth = 1000;
+        final double tableWidth = constraints.maxWidth > minTableWidth ? constraints.maxWidth : minTableWidth;
+        final double availableWidth = tableWidth - 32;
+
+        final double col1 = availableWidth * 0.12;
+        final double col2 = availableWidth * 0.28;
+        final double col3 = availableWidth * 0.15;
+        final double col4 = availableWidth * 0.20;
+        final double col5 = availableWidth * 0.17;
+        final double col6 = availableWidth * 0.08;
+
+        return SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: SizedBox(
+            width: tableWidth,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Container(
+                  color: const Color(0xFFF9FAFB),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  child: Row(
+                    children: [
+                      SizedBox(width: col1, child: const Text('Tag (Código)', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF5F6368)))),
+                      SizedBox(width: col2, child: const Text('Nombre en Sistema', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF5F6368)))),
+                      SizedBox(width: col3, child: const Text('Macro Área', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF5F6368)))),
+                      SizedBox(width: col4, child: const Text('Fabricante / Modelo', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF5F6368)))),
+                      SizedBox(width: col5, child: const Text('Ubicación Específica', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF5F6368)))),
+                      SizedBox(width: col6, child: const Text('Acción', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF5F6368)))),
+                    ],
+                  ),
+                ),
+                const Divider(height: 1, thickness: 1, color: Color(0xFFD9D9D9)),
+                Expanded(
+                  child: NotificationListener<ScrollNotification>(
+                    onNotification: (ScrollNotification scrollInfo) {
+                      if (scrollInfo.metrics.pixels >= scrollInfo.metrics.maxScrollExtent - 200) {
+                        _cargarDatosPaginados();
+                      }
+                      return false;
+                    },
+                    child: ListView.builder(
+                      itemCount: _filteredDashboardData.length + (_cargandoMas ? 1 : 0),
+                      itemBuilder: (context, index) {
+                        if (index == _filteredDashboardData.length) {
+                          return const Padding(
+                            padding: EdgeInsets.all(16.0),
+                            child: Center(child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF1F5C3D))),
+                          );
+                        }
+                        
+                        final data = _filteredDashboardData[index];
+                        final macroArea = (data['areaProceso'] as String?)?.split(' / ').first ?? 'N/A';
+                        
+                        String ubicacionCompleta = data['ubicacionTecnica'] ?? '';
+                        String ubicacionEspecifica = 'N/A';
+                        if (ubicacionCompleta.isNotEmpty) {
+                          final partes = ubicacionCompleta.split('/').where((s) => s.trim().isNotEmpty).toList();
+                          if (partes.length >= 2) {
+                            ubicacionEspecifica = partes[partes.length - 2].trim();
+                          } else if (partes.isNotEmpty) {
+                            ubicacionEspecifica = partes.last.trim();
+                          }
+                        }
+
+                        String fabricante = data['fabricante']?.toString().trim() ?? '';
+                        String modelo = data['modelo']?.toString().trim() ?? '';
+                        String fabricanteModelo = 'N/A';
+                        if (fabricante.isNotEmpty && modelo.isNotEmpty) {
+                          fabricanteModelo = '$fabricante - $modelo';
+                        } else if (fabricante.isNotEmpty) {
+                          fabricanteModelo = fabricante;
+                        } else if (modelo.isNotEmpty) {
+                          fabricanteModelo = modelo;
+                        }
+
+                        String nombrePrincipal = data['nombre']?.toString().trim() ?? '';
+                        if (nombrePrincipal.isEmpty) {
+                          nombrePrincipal = data['descripcion']?.toString().trim() ?? 'Sin nombre';
+                        }
+
+                        return Container(
+                          decoration: const BoxDecoration(
+                            border: Border(bottom: BorderSide(color: Color(0xFFD9D9D9), width: 0.5)),
+                          ),
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                          child: Row(
+                            children: [
+                              SizedBox(width: col1, child: Text(data['codigo'] ?? 'N/A', style: const TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF1A1C1E)))),
+                              SizedBox(width: col2, child: Padding(padding: const EdgeInsets.only(right: 8.0), child: Text(nombrePrincipal, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Color(0xFF1A1C1E))))),
+                              SizedBox(width: col3, child: Padding(padding: const EdgeInsets.only(right: 8.0), child: Text(macroArea, style: const TextStyle(color: Color(0xFF5F6368))))),
+                              SizedBox(width: col4, child: Padding(padding: const EdgeInsets.only(right: 8.0), child: Text(fabricanteModelo, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Color(0xFF5F6368))))),
+                              SizedBox(width: col5, child: Padding(padding: const EdgeInsets.only(right: 8.0), child: Text(ubicacionEspecifica, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Color(0xFF5F6368))))),
+                              SizedBox(
+                                width: col6, 
+                                child: Align(
+                                  alignment: Alignment.centerLeft,
+                                  child: IconButton(
+                                    icon: const Icon(Icons.remove_red_eye, color: Color(0xFF1F5C3D), size: 22),
+                                    splashRadius: 24,
+                                    padding: EdgeInsets.zero,
+                                    constraints: const BoxConstraints(),
+                                    onPressed: () {
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (context) => DetalleEquipoPage(
+                                            documentId: data['id_documento'],
+                                            datos: data,
+                                            rolUsuario: widget.rol,
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                )
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ),
               ],
             ),
           ),
@@ -721,11 +865,11 @@ class _DashboardPageState extends State<DashboardPage> {
 
   @override
   Widget build(BuildContext context) {
-    final bool isAdmin = widget.rol == 'admin';
+    final bool esAprobador = widget.rol == 'admin' || widget.rol == 'supervisor';
     final config = context.watch<ConfiguracionProvider>();
 
     String getAppBarTitle() {
-      if (!isAdmin) return 'Directorio de Planta';
+      if (!esAprobador) return 'Directorio de Planta';
       if (_currentIndex == 0) return 'Directorio de Planta';
       return 'Panel Interactivo';
     }
@@ -770,6 +914,9 @@ class _DashboardPageState extends State<DashboardPage> {
             color: Colors.white,
             onSelected: (String result) async {
               switch (result) {
+                case 'aprobar':
+                  Navigator.push(context, MaterialPageRoute(builder: (context) => EquiposAprobarPage(rol: widget.rol)));
+                  break;
                 case 'manual':
                   Navigator.push(context, MaterialPageRoute(builder: (context) => const ManualPage()));
                   break;
@@ -785,30 +932,63 @@ class _DashboardPageState extends State<DashboardPage> {
               }
             },
             itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
-              const PopupMenuItem<String>(
-                value: 'manual',
-                child: Row(children: [Icon(Icons.picture_as_pdf, color: Color(0xFF1F5C3D)), SizedBox(width: 12), Text('Manual de Mantenimiento', style: TextStyle(color: Color(0xFF1A1C1E)))]),
-              ),
-              if (isAdmin) ...[
-                const PopupMenuItem<String>(
-                  value: 'admin',
-                  child: Row(children: [Icon(Icons.admin_panel_settings, color: Color(0xFF1F5C3D)), SizedBox(width: 12), Text('Control de Accesos', style: TextStyle(color: Color(0xFF1A1C1E)))]),
+              if (esAprobador) ...[
+                PopupMenuItem<String>(
+                  value: 'aprobar',
+                  child: StreamBuilder<QuerySnapshot>(
+                    stream: FirebaseFirestore.instance.collection('ediciones_pendientes').snapshots(),
+                    builder: (context, snapshot) {
+                      int pendientesCount = snapshot.hasData ? snapshot.data!.docs.length : 0;
+                      return Row(
+                        children: [
+                          const Icon(Icons.fact_check, color: Color(0xFF1F5C3D)),
+                          const SizedBox(width: 12),
+                          const Expanded(child: Text('Equipos por Aprobar', style: TextStyle(color: Color(0xFF1A1C1E)))),
+                          if (pendientesCount > 0)
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFDC362E),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Text(
+                                '$pendientesCount',
+                                style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                              ),
+                            ),
+                        ],
+                      );
+                    }
+                  ),
                 ),
-                const PopupMenuItem<String>(
+                const PopupMenuDivider(),
+              ],
+              PopupMenuItem<String>(
+                value: 'manual',
+                child: Row(children: const [Icon(Icons.picture_as_pdf, color: Color(0xFF1F5C3D)), SizedBox(width: 12), Text('Manual de Mantenimiento', style: TextStyle(color: Color(0xFF1A1C1E)))]),
+              ),
+              if (widget.rol == 'admin') ...[
+                PopupMenuItem<String>(
+                  value: 'admin',
+                  child: Row(children: const [Icon(Icons.admin_panel_settings, color: Color(0xFF1F5C3D)), SizedBox(width: 12), Text('Control de Accesos', style: TextStyle(color: Color(0xFF1A1C1E)))]),
+                ),
+              ],
+              if (esAprobador) ...[
+                PopupMenuItem<String>(
                   value: 'config',
-                  child: Row(children: [Icon(Icons.settings, color: Color(0xFF1F5C3D)), SizedBox(width: 12), Text('Configuración del Sistema', style: TextStyle(color: Color(0xFF1A1C1E)))]),
+                  child: Row(children: const [Icon(Icons.settings, color: Color(0xFF1F5C3D)), SizedBox(width: 12), Text('Configuración del Sistema', style: TextStyle(color: Color(0xFF1A1C1E)))]),
                 ),
               ],
               const PopupMenuDivider(),
-              const PopupMenuItem<String>(
+              PopupMenuItem<String>(
                 value: 'logout',
-                child: Row(children: [Icon(Icons.logout, color: Color(0xFFDC362E)), SizedBox(width: 12), Text('Cerrar Sesión', style: TextStyle(color: Color(0xFFDC362E)))]),
+                child: Row(children: const [Icon(Icons.logout, color: Color(0xFFDC362E)), SizedBox(width: 12), Text('Cerrar Sesión', style: TextStyle(color: Color(0xFFDC362E)))]),
               ),
             ],
-          ),
+          ) 
         ],
       ),
-      body: isAdmin
+      body: esAprobador
           ? IndexedStack(
               index: _currentIndex,
               children: [
@@ -817,7 +997,7 @@ class _DashboardPageState extends State<DashboardPage> {
               ],
             )
           : _buildDirectorioView(config),
-      bottomNavigationBar: isAdmin
+      bottomNavigationBar: esAprobador
           ? BottomNavigationBar(
               currentIndex: _currentIndex,
               onTap: (index) {
