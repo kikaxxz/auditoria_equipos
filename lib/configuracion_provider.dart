@@ -4,7 +4,6 @@ import 'package:hive/hive.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'constantes.dart' as constantes;
 
-// --- LISTAS ESTÁTICAS PARA EL PUENTE DE MIGRACIÓN ---
 const List<String> opcionesFamilia = [
   'N/A', 'Acelerómetro (ACEL)', 'Amplificador (AMPL)', 'Atemperador Mecánico (ATEM)', 'Caja Sumadora (CAAD)',
   'Celda de Carga (CELC)', 'Celda de Oxígeno (CLOX)', 'Chute (DUCT)', 'Cilindro Neumat (CILI)',

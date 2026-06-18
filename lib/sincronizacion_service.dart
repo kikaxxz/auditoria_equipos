@@ -8,6 +8,7 @@ import 'package:http/http.dart' as http;
 import 'package:firebase_remote_config/firebase_remote_config.dart';
 import 'package:uuid/uuid.dart';
 import 'image_cache_manager.dart';
+import 'dart:async';
 
 class SincronizacionService {
   static final SincronizacionService _instancia = SincronizacionService._interno();
@@ -17,15 +18,22 @@ class SincronizacionService {
   final Box _pendientes = Hive.box('equipos_pendientes');
   bool _sincronizando = false;
   String? _gasToken;
+  StreamSubscription<List<ConnectivityResult>>? _connectivitySubscription;
 
   void iniciarEscucha() async {
-    Connectivity().onConnectivityChanged.listen((List<ConnectivityResult> results) {
+    _connectivitySubscription?.cancel();
+    
+    _connectivitySubscription = Connectivity().onConnectivityChanged.listen((List<ConnectivityResult> results) {
       if (results.contains(ConnectivityResult.mobile) || results.contains(ConnectivityResult.wifi)) {
         sincronizarDatos();
       }
     });
     _inicializarConfiguracion();
     sincronizarDatos();
+  }
+
+  void detenerEscucha() {
+    _connectivitySubscription?.cancel();
   }
 
   Future<void> _inicializarConfiguracion() async {
@@ -204,15 +212,17 @@ class SincronizacionService {
       copiaParaFirestore.remove('id_transaccion');
 
       if (requiereAprobacion) {
-        final idOriginal = (tipoOperacion == 'modificacion') ? idLevantamiento : null;
-        await FirebaseFirestore.instance.collection('ediciones_pendientes').doc(idTransaccion).set({
-          'id_equipo_original': idOriginal,
-          'tipo_operacion': tipoOperacion ?? (esEdicion ? 'modificacion' : 'creacion'),
-          'datos_propuestos': copiaParaFirestore,
-          'solicitado_por': usuario.email ?? 'Desconocido',
-          'fecha_solicitud': FieldValue.serverTimestamp(),
-        });
-      } else {
+          final idOriginal = (tipoOperacion == 'modificacion') ? idLevantamiento : null;
+          await FirebaseFirestore.instance.collection('ediciones_pendientes').doc(idTransaccion).set({
+            'id_equipo_original': idOriginal,
+            'tipo_operacion': tipoOperacion ?? (esEdicion ? 'modificacion' : 'creacion'),
+            'datos_propuestos': copiaParaFirestore,
+            'solicitado_por': usuario.email ?? 'Desconocido',
+            'fecha_solicitud': FieldValue.serverTimestamp(),
+            'estado': 'pendiente',
+            'motivo_rechazo': FieldValue.delete(),
+          }, SetOptions(merge: true));
+        } else {
         String? areaAntigua;
         if (esEdicion) {
           try {
@@ -389,7 +399,9 @@ class SincronizacionService {
             'datos_propuestos': copiaParaFirestore,
             'solicitado_por': usuario.email ?? 'Desconocido',
             'fecha_solicitud': FieldValue.serverTimestamp(),
-          });
+            'estado': 'pendiente',
+            'motivo_rechazo': FieldValue.delete(),
+          }, SetOptions(merge: true));
         } else {
           String? areaAntigua;
           if (esEdicion) {
@@ -421,48 +433,47 @@ class SincronizacionService {
     }
   }
 
-  Future<String?> _subirADrive(String base64Str, String prefijo, {int intentos = 0}) async {
+  Future<String?> _subirADrive(String base64Str, String prefijo) async {
     final url = Uri.parse('https://script.google.com/macros/s/AKfycbyTWspMja3IrBHwSvwAePgX1TkFynYNJayyjqXTnUEM-rWOkH-rtUluMVyFx7wbAm5E/exec');
     final nombreArchivo = '${prefijo}_${DateTime.now().millisecondsSinceEpoch}.jpg';
+    int intentos = 0;
 
-    try {
-      final bodyData = jsonEncode({
-        'security_token': _gasToken, 
-        'filename': nombreArchivo,
-        'image': base64Str,
-      });
+    while (intentos <= 3) {
+      try {
+        final bodyData = jsonEncode({
+          'security_token': _gasToken, 
+          'filename': nombreArchivo,
+          'image': base64Str,
+        });
 
-      final respuesta = await http.post(
-        url,
-        headers: {'Content-Type': 'text/plain'},
-        body: bodyData,
-      );
-      
-      final bodyText = respuesta.body.trim();
-
-      if (bodyText.toLowerCase().startsWith('<') || bodyText.toLowerCase().contains('<!doctype html>')) {
-         return null;
-      }
-
-      if (respuesta.statusCode == 200) {
-        final rDatos = jsonDecode(bodyText);
+        final respuesta = await http.post(
+          url,
+          headers: {'Content-Type': 'text/plain'},
+          body: bodyData,
+        );
         
-        if (rDatos['success'] == true) {
-          return rDatos['fileId'];
-        } else if (rDatos.containsKey('error')) {
-          if (intentos < 3) {
-            await Future.delayed(Duration(seconds: 2 * (intentos + 1)));
-            return await _subirADrive(base64Str, prefijo, intentos: intentos + 1);
+        final bodyText = respuesta.body.trim();
+
+        if (bodyText.toLowerCase().startsWith('<') || bodyText.toLowerCase().contains('<!doctype html>')) {
+           return null;
+        }
+
+        if (respuesta.statusCode == 200) {
+          final rDatos = jsonDecode(bodyText);
+          if (rDatos['success'] == true) {
+            return rDatos['fileId'];
           }
         }
-      } else if ((respuesta.statusCode == 429 || respuesta.statusCode == 500) && intentos < 3) {
-        await Future.delayed(Duration(seconds: 2 * (intentos + 1)));
-        return await _subirADrive(base64Str, prefijo, intentos: intentos + 1);
-      }
-    } catch (e) {
-      if (intentos < 3) {
-        await Future.delayed(Duration(seconds: 2 * (intentos + 1)));
-        return await _subirADrive(base64Str, prefijo, intentos: intentos + 1);
+
+        intentos++;
+        if (intentos <= 3) {
+          await Future.delayed(Duration(seconds: 2 * intentos));
+        }
+      } catch (e) {
+        intentos++;
+        if (intentos <= 3) {
+          await Future.delayed(Duration(seconds: 2 * intentos));
+        }
       }
     }
     return null;

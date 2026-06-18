@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'equipo_form_provider.dart';
 import 'configuracion_provider.dart';
+import 'imagen_drive_widget.dart';
 
 const Color _isaPrimary = Color(0xFF1F5C3D);
 const Color _isaBackground = Color(0xFFF5F6F7);
@@ -116,7 +117,9 @@ class _FormularioEquipoPageState extends State<FormularioEquipoPage> {
     );
   }
 
-  Widget _buildImageCapture(String title, String? base64Image, VoidCallback onCapture, IconData icon) {
+  Widget _buildImageCapture(String title, String? base64Image, String? imageUrl, VoidCallback onCapture, IconData icon) {
+    final bool hasImage = base64Image != null || (imageUrl != null && imageUrl.isNotEmpty);
+    
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -142,11 +145,11 @@ class _FormularioEquipoPageState extends State<FormularioEquipoPage> {
             height: 240,
             width: double.infinity,
             decoration: BoxDecoration(
-              color: base64Image != null ? _isaSurface : _isaBackground,
+              color: hasImage ? _isaSurface : _isaBackground,
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
-                color: base64Image != null ? _isaPrimary : _isaDivider,
-                width: base64Image != null ? 2 : 1.5,
+                color: hasImage ? _isaPrimary : _isaDivider,
+                width: hasImage ? 2 : 1.5,
               ),
             ),
             child: base64Image != null
@@ -157,36 +160,41 @@ class _FormularioEquipoPageState extends State<FormularioEquipoPage> {
                       fit: BoxFit.contain,
                     ),
                   )
-                : Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(20),
-                        decoration: BoxDecoration(
-                          color: _isaSurface,
-                          shape: BoxShape.circle,
-                          border: Border.all(color: _isaDivider),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.05),
-                              blurRadius: 10,
-                              spreadRadius: 1,
+                : (imageUrl != null && imageUrl.isNotEmpty)
+                    ? ClipRRect(
+                        borderRadius: BorderRadius.circular(10),
+                        child: ImagenDriveWidget(fileId: imageUrl),
+                      )
+                    : Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(20),
+                            decoration: BoxDecoration(
+                              color: _isaSurface,
+                              shape: BoxShape.circle,
+                              border: Border.all(color: _isaDivider),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.05),
+                                  blurRadius: 10,
+                                  spreadRadius: 1,
+                                ),
+                              ],
                             ),
-                          ],
-                        ),
-                        child: const Icon(Icons.add_a_photo, size: 40, color: _isaPrimary),
+                            child: const Icon(Icons.add_a_photo, size: 40, color: _isaPrimary),
+                          ),
+                          const SizedBox(height: 16),
+                          const Text(
+                            'Tocar para capturar evidencia',
+                            style: TextStyle(
+                              color: _isaTextSecondary,
+                              fontWeight: FontWeight.w500,
+                              fontSize: 15,
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 16),
-                      const Text(
-                        'Tocar para capturar evidencia',
-                        style: TextStyle(
-                          color: _isaTextSecondary,
-                          fontWeight: FontWeight.w500,
-                          fontSize: 15,
-                        ),
-                      ),
-                    ],
-                  ),
           ),
         ),
       ],
@@ -343,49 +351,18 @@ class _FormularioEquipoPageState extends State<FormularioEquipoPage> {
                     if (_currentStep < 4) {
                       setState(() => _currentStep += 1);
                     } else {
-                      showDialog(
+                      final exito = await showDialog<bool>(
                         context: context,
                         barrierDismissible: false,
                         builder: (BuildContext dialogContext) {
-                          return const DialogoProgresoSubida();
+                          return DialogoProgresoSubida(
+                            tarea: provider.guardarLevantamientoFinal(rolUsuario: widget.rolUsuario),
+                          );
                         },
                       );
 
-                      try {
-                          await provider.guardarLevantamientoFinal(rolUsuario: widget.rolUsuario);
-
-                          if (context.mounted) {
-                            Navigator.of(context).pop();
-                            Navigator.of(context).pop(true);
-                            
-                            final requiereAprobacion = !tienePrivilegios;
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(requiereAprobacion ? 'Registro enviado a revisión exitosamente.' : 'Registro procesado exitosamente.'),
-                                  backgroundColor: const Color(0xFF1F5C3D),
-                                ),
-                              );
-                          }
-                        } on TimeoutException {
-                          if (context.mounted) {
-                            Navigator.of(context).pop();
-                            Navigator.of(context).pop(true);
-                            
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Tiempo superado. El equipo se guardó localmente y se sincronizará en segundo plano.'),
-                                backgroundColor: Color(0xFFF57F17),
-                              ),
-                            );
-                          }
-                        } 
-                      catch (e) {
-                        if (context.mounted) {
-                          Navigator.of(context).pop();
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('Error al guardar: $e')),
-                          );
-                        }
+                      if (mounted && exito != null) {
+                        Navigator.of(context).pop(true);
                       }
                     }
                   },
@@ -579,7 +556,7 @@ class _FormularioEquipoPageState extends State<FormularioEquipoPage> {
                             _buildResponsiveRow([
                               DropdownButtonFormField<String>(
                                 isExpanded: true,
-                                value: config.marcas.contains(provider.marca) ? provider.marca : null,
+                                initialValue: config.marcas.contains(provider.marca) ? provider.marca : null,
                                 decoration: _buildInputDeco('Marca / Fabricante', Icons.branding_watermark),
                                 dropdownColor: _isaSurface,
                                 items: config.marcas.map((String marcaItem) {
@@ -643,7 +620,7 @@ class _FormularioEquipoPageState extends State<FormularioEquipoPage> {
                               ),
                               DropdownButtonFormField<String>(
                                 isExpanded: true,
-                                value: config.unidades.contains(provider.unidadIngenieria) ? provider.unidadIngenieria : null,
+                                initialValue: config.unidades.contains(provider.unidadIngenieria) ? provider.unidadIngenieria : null,
                                 decoration: _buildInputDeco('Unidad', Icons.square_foot),
                                 dropdownColor: _isaSurface,
                                 items: config.unidades.map((String unidadItem) {
@@ -725,6 +702,7 @@ class _FormularioEquipoPageState extends State<FormularioEquipoPage> {
                             _buildImageCapture(
                               'Foto de la Placa Técnica',
                               provider.fotoPlacaBase64,
+                              provider.fotoPlacaUrlExistente, // <-- Renombrado aquí
                               () => provider.capturarFoto('placa'),
                               Icons.branding_watermark,
                             ),
@@ -734,6 +712,7 @@ class _FormularioEquipoPageState extends State<FormularioEquipoPage> {
                             _buildImageCapture(
                               'Foto de la Placa Técnica 2 (Opcional)',
                               provider.fotoPlacaAdicionalBase64,
+                              provider.fotoPlacaAdicionalUrlExistente, // <-- Renombrado aquí
                               () => provider.capturarFoto('placa_adicional'),
                               Icons.add_photo_alternate,
                             ),
@@ -743,6 +722,7 @@ class _FormularioEquipoPageState extends State<FormularioEquipoPage> {
                             _buildImageCapture(
                               'Foto General del Equipo',
                               provider.fotoGeneralBase64,
+                              provider.fotoGeneralUrlExistente, // <-- Renombrado aquí
                               () => provider.capturarFoto('general'),
                               Icons.device_hub,
                             ),
@@ -761,27 +741,66 @@ class _FormularioEquipoPageState extends State<FormularioEquipoPage> {
   }
 }
 
+enum EstadoSubida { cargando, exito, local }
+
 class DialogoProgresoSubida extends StatefulWidget {
-  const DialogoProgresoSubida({super.key});
+  final Future<bool> tarea;
+
+  const DialogoProgresoSubida({super.key, required this.tarea});
 
   @override
   State<DialogoProgresoSubida> createState() => _DialogoProgresoSubidaState();
 }
 
 class _DialogoProgresoSubidaState extends State<DialogoProgresoSubida> {
+  EstadoSubida _estado = EstadoSubida.cargando;
   double _progreso = 0.0;
   late Timer _timer;
 
   @override
   void initState() {
     super.initState();
+    _iniciarAnimacion();
+    _ejecutarTarea();
+  }
+
+  void _iniciarAnimacion() {
     _timer = Timer.periodic(const Duration(milliseconds: 150), (timer) {
-      if (mounted && _progreso < 0.99) {
+      if (mounted && _progreso < 0.90) {
         setState(() {
-          _progreso += 0.01;
+          _progreso += 0.02;
         });
       }
     });
+  }
+
+  Future<void> _ejecutarTarea() async {
+    try {
+      final resultado = await widget.tarea;
+      _timer.cancel();
+      if (mounted) {
+        setState(() {
+          _progreso = 1.0;
+          _estado = resultado ? EstadoSubida.exito : EstadoSubida.local;
+        });
+        await Future.delayed(const Duration(milliseconds: 1800));
+        if (mounted) {
+          Navigator.of(context).pop(resultado);
+        }
+      }
+    } catch (e) {
+      _timer.cancel();
+      if (mounted) {
+        setState(() {
+          _progreso = 1.0;
+          _estado = EstadoSubida.local;
+        });
+        await Future.delayed(const Duration(milliseconds: 1800));
+        if (mounted) {
+          Navigator.of(context).pop(false);
+        }
+      }
+    }
   }
 
   @override
@@ -807,9 +826,17 @@ class _DialogoProgresoSubidaState extends State<DialogoProgresoSubida> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text(
-                'Sincronizando con Servidor...',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1F5C3D)),
+              Text(
+                _estado == EstadoSubida.cargando
+                    ? 'Procesando Registro...'
+                    : (_estado == EstadoSubida.exito ? '¡Completado!' : 'Guardado Localmente'),
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: _estado == EstadoSubida.exito
+                      ? const Color(0xFF1F5C3D)
+                      : (_estado == EstadoSubida.local ? const Color(0xFFF57F17) : const Color(0xFF1A1C1E)),
+                ),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 24),
@@ -823,19 +850,34 @@ class _DialogoProgresoSubidaState extends State<DialogoProgresoSubida> {
                       value: _progreso,
                       strokeWidth: 8,
                       backgroundColor: const Color(0xFFD9D9D9),
-                      valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF1F5C3D)),
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        _estado == EstadoSubida.exito
+                            ? const Color(0xFF1F5C3D)
+                            : (_estado == EstadoSubida.local ? const Color(0xFFF57F17) : const Color(0xFF1F5C3D)),
+                      ),
                     ),
                   ),
-                  Text(
-                    '${(_progreso * 100).toInt()}%',
-                    style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFF1A1C1E)),
-                  ),
+                  if (_estado == EstadoSubida.cargando)
+                    Text(
+                      '${(_progreso * 100).toInt()}%',
+                      style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFF1A1C1E)),
+                    )
+                  else
+                    Icon(
+                      _estado == EstadoSubida.exito ? Icons.check_rounded : Icons.cloud_off_rounded,
+                      size: 48,
+                      color: _estado == EstadoSubida.exito ? const Color(0xFF1F5C3D) : const Color(0xFFF57F17),
+                    ),
                 ],
               ),
               const SizedBox(height: 24),
-              const Text(
-                'Por favor, no cierre la aplicación ni bloquee la pantalla.',
-                style: TextStyle(color: Color(0xFF5F6368), fontSize: 13),
+              Text(
+                _estado == EstadoSubida.cargando
+                    ? 'Por favor, no cierre la aplicación ni bloquee la pantalla.'
+                    : (_estado == EstadoSubida.exito
+                        ? 'El registro ha sido enviado exitosamente al servidor.'
+                        : 'El registro se guardó en el dispositivo y se enviará cuando haya conexión.'),
+                style: const TextStyle(color: Color(0xFF5F6368), fontSize: 13),
                 textAlign: TextAlign.center,
               ),
             ],

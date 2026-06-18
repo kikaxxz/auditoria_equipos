@@ -17,12 +17,22 @@ class _VisorImagenDialogo extends StatefulWidget {
 }
 
 class _VisorImagenDialogoState extends State<_VisorImagenDialogo> {
+  static final Map<String, String> _cacheImagenesBase64 = {};
   late Future<String?> _futureImagen;
 
   @override
   void initState() {
     super.initState();
-    _futureImagen = SincronizacionService.descargarImagenDriveBase64(widget.fileId);
+    if (_cacheImagenesBase64.containsKey(widget.fileId)) {
+      _futureImagen = Future.value(_cacheImagenesBase64[widget.fileId]);
+    } else {
+      _futureImagen = SincronizacionService.descargarImagenDriveBase64(widget.fileId).then((base64) {
+        if (base64 != null) {
+          _cacheImagenesBase64[widget.fileId] = base64;
+        }
+        return base64;
+      });
+    }
   }
 
   void _mostrarImagenCompleta(BuildContext context, String base64Data, String titulo) {
@@ -240,28 +250,86 @@ class _EquiposAprobarPageState extends State<EquiposAprobarPage> {
   }
 
   Future<void> _rechazarSolicitud(String idPendiente) async {
-    try {
-      final doc = await FirebaseFirestore.instance.collection('ediciones_pendientes').doc(idPendiente).get();
-      if (doc.exists) {
-        final data = doc.data() as Map<String, dynamic>;
-        final datosPropuestos = data['datos_propuestos'] as Map<String, dynamic>? ?? {};
-        final urlsTemporales = datosPropuestos['urls_subidas_temporalmente'] as List<dynamic>? ?? [];
-        
-        for (var url in urlsTemporales) {
-          SincronizacionService().eliminarImagenDrive(url.toString());
+    final TextEditingController motivoController = TextEditingController();
+
+    // 1. Desplegar diálogo para capturar el motivo del rechazo
+    final bool? confirmar = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Devolver a Técnico'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Especifique el motivo para que el operador pueda corregir el levantamiento:'),
+            const SizedBox(height: 12),
+            TextField(
+              controller: motivoController,
+              decoration: const InputDecoration(
+                labelText: 'Motivo de corrección',
+                border: OutlineInputBorder(),
+              ),
+              maxLines: 3,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('CANCELAR', style: TextStyle(color: Color(0xFF5F6368))),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFDC362E)),
+            onPressed: () {
+              if (motivoController.text.trim().isNotEmpty) {
+                Navigator.pop(context, true);
+              }
+            },
+            child: const Text('DEVOLVER', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+
+    // 2. Ejecutar la actualización de estado si se confirmó el motivo
+    if (confirmar == true) {
+      try {
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => const Center(child: CircularProgressIndicator(color: Color(0xFF1F5C3D))),
+        );
+
+        await FirebaseFirestore.instance
+            .collection('ediciones_pendientes')
+            .doc(idPendiente)
+            .update({
+          'estado': 'rechazado',
+          'motivo_rechazo': motivoController.text.trim(),
+          'fecha_rechazo': FieldValue.serverTimestamp(),
+          'rechazado_por': FirebaseAuth.instance.currentUser?.email,
+        });
+
+        if (mounted) {
+          Navigator.pop(context);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Registro devuelto al técnico exitosamente.'),
+              backgroundColor: Color(0xFFF57F17),
+            ),
+          );
+          Navigator.pop(context); 
+        }
+      } catch (e) {
+        if (mounted) {
+          Navigator.pop(context); 
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error al procesar la devolución: $e'),
+              backgroundColor: const Color(0xFFDC362E),
+            ),
+          );
         }
       }
-
-      await FirebaseFirestore.instance.collection('ediciones_pendientes').doc(idPendiente).delete();
-      
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Solicitud rechazada. Las fotos temporales fueron eliminadas.'), backgroundColor: Color(0xFF5F6368)),
-        );
-        Navigator.pop(context);
-      }
-    } catch (e) {
-      debugPrint(e.toString());
     }
   }
 
@@ -784,10 +852,12 @@ class _EquiposAprobarPageState extends State<EquiposAprobarPage> {
       body: StreamBuilder<QuerySnapshot>(
         stream: (widget.rol == 'admin' || widget.rol == 'supervisor')
             ? FirebaseFirestore.instance.collection('ediciones_pendientes')
+                .where('estado', isEqualTo: 'pendiente')
                 .orderBy('fecha_solicitud', descending: true)
                 .snapshots()
             : FirebaseFirestore.instance.collection('ediciones_pendientes')
                 .where('solicitado_por', isEqualTo: FirebaseAuth.instance.currentUser?.email)
+                .where('estado', isEqualTo: 'pendiente')
                 .orderBy('fecha_solicitud', descending: true)
                 .snapshots(),
         builder: (context, snapshot) {

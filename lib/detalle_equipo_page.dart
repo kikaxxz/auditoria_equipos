@@ -280,10 +280,9 @@ class DetalleEquipoPage extends StatelessWidget {
           docOriginal == currentEmail
         );
         
-        final bool tienePermisosEliminar = rolUsuario == 'admin' || rolUsuario == 'supervisor' || esPropietario;
+        final bool tienePermisosEliminar = rolUsuario == 'admin' || rolUsuario == 'supervisor';
         final bool esConsultor = rolUsuario == 'consultor';
 
-        // Mapeo correcto de las fechas posibles (Bug #2 Solucionado)
         final fechaModificacion = datos['ultimaModificacion'] ?? 
                                   datos['sincronizadoEn'] ?? 
                                   datos['actualizadoEn'] ?? 

@@ -1,5 +1,7 @@
 import 'dart:convert';
 import 'dart:async';
+import 'dart:typed_data'; // Añadido para Uint8List
+import 'package:flutter/foundation.dart'; // Añadido para compute
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:hive/hive.dart';
@@ -8,6 +10,10 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'sincronizacion_service.dart';
 import 'image_cache_manager.dart';
+
+String codificarBase64EnIsolate(Uint8List bytes) {
+  return base64Encode(bytes);
+}
 
 class EquipoFormProvider extends ChangeNotifier {
   String codigo = '';
@@ -50,6 +56,7 @@ class EquipoFormProvider extends ChangeNotifier {
   String? fotoGeneralBase64;
 
   String? idLevantamientoTemporal;
+  String? idTransaccionExistente;
   String? fotoPlacaUrlExistente;
   String? fotoPlacaAdicionalUrlExistente;
   String? fotoGeneralUrlExistente;
@@ -58,6 +65,8 @@ class EquipoFormProvider extends ChangeNotifier {
 
   String _nombreAuditor = '';
   bool guardandoEnRed = false;
+
+  Timer? _debounceBorrador; // Variable añadida para controlar el lag de escritura
 
   final ImagePicker _picker = ImagePicker();
   final Box _borrador = Hive.box('borrador');
@@ -110,38 +119,49 @@ class EquipoFormProvider extends ChangeNotifier {
       case 'plan_tareas': planTareas = value; break;
       case 'observacion': observacion = value; break;
     }
-    _guardarBorrador();
+    
     notifyListeners();
+
+    if (_debounceBorrador?.isActive ?? false) _debounceBorrador!.cancel();
+    _debounceBorrador = Timer(const Duration(milliseconds: 500), () {
+      _guardarBorrador();
+    });
   }
 
   Future<void> capturarFoto(String tipo) async {
-    final XFile? photo = await _picker.pickImage(
-      source: ImageSource.camera,
-      imageQuality: 60,
-      maxWidth: 1280,
-      maxHeight: 1280,
-    );
+    try {
+      final XFile? photo = await _picker.pickImage(
+        source: ImageSource.camera,
+        imageQuality: 60,
+        maxWidth: 1080,
+        maxHeight: 1080,
+      );
 
-    if (photo != null) {
-      final bytes = await photo.readAsBytes();
-      final base64String = base64Encode(bytes);
+      if (photo != null) {
+        final Uint8List bytes = await photo.readAsBytes();
+        
+        final String base64String = await compute(codificarBase64EnIsolate, bytes);
 
-      if (tipo == 'placa') {
-        fotoPlaca = photo;
-        fotoPlacaBase64 = base64String;
-      } else if (tipo == 'placa_adicional') {
-        fotoPlacaAdicional = photo;
-        fotoPlacaAdicionalBase64 = base64String;
-      } else {
-        fotoGeneral = photo;
-        fotoGeneralBase64 = base64String;
+        if (tipo == 'placa') {
+          fotoPlaca = photo;
+          fotoPlacaBase64 = base64String;
+        } else if (tipo == 'placa_adicional') {
+          fotoPlacaAdicional = photo;
+          fotoPlacaAdicionalBase64 = base64String;
+        } else {
+          fotoGeneral = photo;
+          fotoGeneralBase64 = base64String;
+        }
+        
+        _guardarBorrador();
+        notifyListeners();
       }
-      _guardarBorrador();
-      notifyListeners();
+    } catch (e) {
+      debugPrint('Error al capturar foto: $e');
     }
   }
 
-  Future<void> guardarLevantamientoFinal({required String rolUsuario}) async {
+  Future<bool> guardarLevantamientoFinal({required String rolUsuario}) async {
     guardandoEnRed = true;
     notifyListeners();
 
@@ -149,7 +169,7 @@ class EquipoFormProvider extends ChangeNotifier {
     final String idFinal = idLevantamientoTemporal ?? const Uuid().v4();
     final String emailActual = FirebaseAuth.instance.currentUser?.email ?? 'Desconocido';
     final String creadorFinal = _nombreAuditor.isNotEmpty ? _nombreAuditor : emailActual;
-    final String idTransaccion = const Uuid().v4();
+    final String idTransaccion = idTransaccionExistente ?? const Uuid().v4();
 
     final datos = {
       'id_transaccion': idTransaccion,
@@ -194,16 +214,20 @@ class EquipoFormProvider extends ChangeNotifier {
       if (!exito) {
         _pendientes.add(datos);
       }
+      guardandoEnRed = false;
+      resetForm();
+      return exito;
     } catch (e) {
       _pendientes.add(datos);
+      guardandoEnRed = false;
+      resetForm();
+      return false;
     }
-
-    guardandoEnRed = false;
-    resetForm();
   }
 
   void cargarLevantamientoExistente(String docId, Map<String, dynamic> datos) async {
     idLevantamientoTemporal = docId;
+    idTransaccionExistente = datos['id_transaccion'];
     codigo = datos['codigo'] ?? '';
     descripcion = datos['descripcion'] ?? '';
     nombre = datos['nombre'] ?? '';
@@ -276,31 +300,29 @@ class EquipoFormProvider extends ChangeNotifier {
     fotoPlacaAdicional = null;
     fotoGeneral = null;
 
-    notifyListeners();
-
+    // Procesamos las imágenes de caché en hilos secundarios
     if (fotoPlacaUrlExistente != null) {
       final bytesPlaca = await ImageCacheManager.obtenerImagen(fotoPlacaUrlExistente!);
       if (bytesPlaca != null) {
-        fotoPlacaBase64 = base64Encode(bytesPlaca);
-        notifyListeners();
+        fotoPlacaBase64 = await compute(codificarBase64EnIsolate, bytesPlaca);
       }
     }
 
     if (fotoPlacaAdicionalUrlExistente != null) {
-      final bytesPlacaAdicional = await ImageCacheManager.obtenerImagen(fotoPlacaAdicionalUrlExistente!);
-      if (bytesPlacaAdicional != null) {
-        fotoPlacaAdicionalBase64 = base64Encode(bytesPlacaAdicional);
-        notifyListeners();
+      final bytesPlacaAdic = await ImageCacheManager.obtenerImagen(fotoPlacaAdicionalUrlExistente!);
+      if (bytesPlacaAdic != null) {
+        fotoPlacaAdicionalBase64 = await compute(codificarBase64EnIsolate, bytesPlacaAdic);
       }
     }
 
     if (fotoGeneralUrlExistente != null) {
       final bytesGeneral = await ImageCacheManager.obtenerImagen(fotoGeneralUrlExistente!);
       if (bytesGeneral != null) {
-        fotoGeneralBase64 = base64Encode(bytesGeneral);
-        notifyListeners();
+        fotoGeneralBase64 = await compute(codificarBase64EnIsolate, bytesGeneral);
       }
     }
+
+    notifyListeners();
   }
 
   void resetForm() {
@@ -341,6 +363,7 @@ class EquipoFormProvider extends ChangeNotifier {
     fotoGeneralBase64 = null;
     
     idLevantamientoTemporal = null;
+    idTransaccionExistente = null;
     fotoPlacaUrlExistente = null;
     fotoPlacaAdicionalUrlExistente = null;
     fotoGeneralUrlExistente = null;
@@ -354,6 +377,7 @@ class EquipoFormProvider extends ChangeNotifier {
   void _guardarBorrador() {
     _borrador.putAll({
       'idLevantamientoTemporal': idLevantamientoTemporal,
+      'idTransaccionExistente': idTransaccionExistente,
       'codigo': codigo,
       'descripcion': descripcion,
       'nombre': nombre,
@@ -391,6 +415,7 @@ class EquipoFormProvider extends ChangeNotifier {
   void _cargarBorrador() {
     if (_borrador.isNotEmpty) {
       idLevantamientoTemporal = _borrador.get('idLevantamientoTemporal');
+      idTransaccionExistente = _borrador.get('idTransaccionExistente');
       codigo = _borrador.get('codigo', defaultValue: '');
       descripcion = _borrador.get('descripcion', defaultValue: '');
       nombre = _borrador.get('nombre', defaultValue: '');

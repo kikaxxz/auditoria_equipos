@@ -205,20 +205,22 @@ class EquiposListProvider extends ChangeNotifier {
   Future<Map<String, int>> obtenerConteosPorMacroArea(List<String> areasPlanta) async {
     Map<String, int> conteosMacro = {};
     try {
-      for (var areaCompleta in areasPlanta) {
-        final partes = areaCompleta.split(' / ');
-        final macroArea = partes[0].trim();
+      final docSnapshot = await FirebaseFirestore.instance
+          .collection('metricas')
+          .doc('conteos_areas')
+          .get();
 
-        final snapshot = await FirebaseFirestore.instance
-            .collection('equipos')
-            .where('areaProceso', isGreaterThanOrEqualTo: areaCompleta)
-            .where('areaProceso', isLessThan: '$areaCompleta\uf8ff')
-            .count()
-            .get();
-
-        final count = snapshot.count ?? 0;
-        if (count > 0) {
-          conteosMacro[macroArea] = (conteosMacro[macroArea] ?? 0) + count;
+      if (docSnapshot.exists) {
+        final data = docSnapshot.data() as Map<String, dynamic>;
+        
+        for (var areaCompleta in areasPlanta) {
+          final macroArea = areaCompleta.split(' / ').first.trim();
+          String safeKey = macroArea.replaceAll('/', '-').replaceAll('.', '-');
+          
+          final int count = (data[safeKey] as num?)?.toInt() ?? 0;
+          if (count > 0) {
+            conteosMacro[macroArea] = (conteosMacro[macroArea] ?? 0) + count;
+          }
         }
       }
     } catch (e) {

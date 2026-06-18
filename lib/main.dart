@@ -13,7 +13,7 @@ import 'dashboard_page.dart';
 import 'onboarding_page.dart';
 import 'sincronizacion_service.dart';
 import 'equipos_list_provider.dart';
-import 'configuracion_provider.dart'; // <-- IMPORTACIÓN AGREGADA
+import 'configuracion_provider.dart';
 
 const Color _isaPrimary = Color(0xFF1F5C3D);
 const Color _isaSecondary = Color(0xFF2F7A4F);
@@ -171,7 +171,7 @@ void main() async {
       providers: [
         ChangeNotifierProvider(create: (_) => EquipoFormProvider()),
         ChangeNotifierProvider(create: (_) => EquiposListProvider()),
-        ChangeNotifierProvider(create: (_) => ConfiguracionProvider()), // <-- REGISTRO AGREGADO
+        ChangeNotifierProvider(create: (_) => ConfiguracionProvider()),
       ],
       child: MaterialApp(
         title: 'Sistema de Registro AYC - ISA',
@@ -334,26 +334,18 @@ class VerificadorRol extends StatelessWidget {
       stream: FirebaseFirestore.instance.collection('usuarios').doc(usuario.email).snapshots(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return Scaffold(
+          return const Scaffold(
             body: Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const CircularProgressIndicator(color: _isaPrimary),
-                  const SizedBox(height: 24),
-                  const Text(
-                        'Consultando permisos...',
+                  CircularProgressIndicator(color: _isaPrimary),
+                  SizedBox(height: 24),
+                  Text(
+                    'Consultando permisos...',
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w500,
-                      color: _isaTextSecondary,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    usuario.email ?? '',
-                    style: const TextStyle(
-                      fontSize: 14,
                       color: _isaTextSecondary,
                     ),
                   ),

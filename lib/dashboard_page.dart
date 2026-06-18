@@ -11,6 +11,7 @@ import 'detalle_equipo_page.dart';
 import 'manual_page.dart';
 import 'Configuracion.dart';
 import 'equipos_aprobar_page.dart';
+import 'mis_solicitudes_page.dart';
 
 class DashboardPage extends StatefulWidget {
   final String rol;
@@ -863,6 +864,209 @@ class _DashboardPageState extends State<DashboardPage> {
     );
   }
 
+  Widget _buildDrawerItem({
+    required IconData icon,
+    required String text,
+    required VoidCallback onTap,
+    Color color = const Color(0xFF1A1C1E),
+    Widget? trailing,
+  }) {
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 4.0),
+      leading: Icon(icon, color: color == const Color(0xFF1A1C1E) ? const Color(0xFF1F5C3D) : color),
+      title: Text(
+        text,
+        style: TextStyle(
+          color: color,
+          fontSize: 15,
+          fontWeight: FontWeight.w500,
+        ),
+      ),
+      trailing: trailing,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      onTap: onTap,
+    );
+  }
+
+  Widget _buildDrawer(bool esAprobador) {
+    final user = FirebaseAuth.instance.currentUser;
+    final userName = user?.displayName ?? 'Usuario del Sistema';
+    final userEmail = user?.email ?? 'correo@ejemplo.com';
+    final String rolCapitalizado = widget.rol.isNotEmpty 
+        ? '${widget.rol[0].toUpperCase()}${widget.rol.substring(1)}'
+        : 'Desconocido';
+
+    return Drawer(
+      backgroundColor: const Color(0xFFFFFFFF),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.horizontal(right: Radius.circular(28)),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Container(
+            color: const Color(0xFF1F5C3D),
+            padding: EdgeInsets.only(
+              top: MediaQuery.of(context).padding.top + 24,
+              left: 24,
+              right: 24,
+              bottom: 24,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                CircleAvatar(
+                  radius: 32,
+                  backgroundColor: Colors.white,
+                  backgroundImage: user?.photoURL != null ? NetworkImage(user!.photoURL!) : null,
+                  child: user?.photoURL == null
+                      ? Text(
+                          userName.isNotEmpty ? userName[0].toUpperCase() : 'U',
+                          style: const TextStyle(fontSize: 28, color: Color(0xFF1F5C3D), fontWeight: FontWeight.bold),
+                        )
+                      : null,
+                ),
+                const SizedBox(height: 20),
+                Text(
+                  userName,
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  userEmail,
+                  style: const TextStyle(fontSize: 13, color: Colors.white70),
+                ),
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    'Rol: $rolCapitalizado',
+                    style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.white),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 8.0),
+              children: [
+                if (esAprobador) ...[
+                  StreamBuilder<QuerySnapshot>(
+                    stream: FirebaseFirestore.instance.collection('ediciones_pendientes').snapshots(),
+                    builder: (context, snapshot) {
+                      int pendientesCount = snapshot.hasData ? snapshot.data!.docs.length : 0;
+                      return _buildDrawerItem(
+                        icon: Icons.fact_check,
+                        text: 'Equipos por Aprobar',
+                        trailing: pendientesCount > 0
+                            ? Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFDC362E),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Text(
+                                  '$pendientesCount',
+                                  style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+                                )
+                              )
+                            : null,
+                        onTap: () {
+                          Navigator.pop(context);
+                          Navigator.push(context, MaterialPageRoute(builder: (context) => EquiposAprobarPage(rol: widget.rol)));
+                        },
+                      );
+                    },
+                  ),
+                  const Divider(color: Color(0xFFD9D9D9), indent: 16, endIndent: 16),
+                ],
+                if (widget.rol == 'tecnico') ...[
+                  StreamBuilder<QuerySnapshot>(
+                    stream: FirebaseFirestore.instance.collection('ediciones_pendientes')
+                        .where('solicitado_por', isEqualTo: userEmail)
+                        .where('estado', isEqualTo: 'pendiente')
+                        .snapshots(),
+                    builder: (context, snapshot) {
+                      int pendientesCount = snapshot.hasData ? snapshot.data!.docs.length : 0;
+                      return _buildDrawerItem(
+                        icon: Icons.assignment,
+                        text: 'Mis Solicitudes',
+                        trailing: pendientesCount > 0
+                            ? Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF1F5C3D),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Text(
+                                  '$pendientesCount',
+                                  style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+                                )
+                              )
+                            : null,
+                        onTap: () {
+                        Navigator.pop(context);
+                        Navigator.push(context, MaterialPageRoute(builder: (context) => MisSolicitudesPage(rol: widget.rol)));
+                      },
+                      );
+                    },
+                  ),
+                  const Divider(color: Color(0xFFD9D9D9), indent: 16, endIndent: 16),
+                ],
+                _buildDrawerItem(
+                  icon: Icons.picture_as_pdf,
+                  text: 'Manual de Mantenimiento',
+                  onTap: () {
+                    Navigator.pop(context);
+                    Navigator.push(context, MaterialPageRoute(builder: (context) => const ManualPage()));
+                  },
+                ),
+                if (widget.rol == 'admin')
+                  _buildDrawerItem(
+                    icon: Icons.admin_panel_settings,
+                    text: 'Control de Accesos',
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.push(context, MaterialPageRoute(builder: (context) => const AdminUsuariosPage()));
+                    },
+                  ),
+                if (esAprobador)
+                  _buildDrawerItem(
+                    icon: Icons.settings,
+                    text: 'Configuración del Sistema',
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.push(context, MaterialPageRoute(builder: (context) => const PanelConfiguracionPage()));
+                    },
+                  ),
+              ],
+            ),
+          ),
+          const Divider(color: Color(0xFFD9D9D9), height: 1),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 8.0),
+            child: _buildDrawerItem(
+              icon: Icons.logout,
+              text: 'Cerrar Sesión',
+              color: const Color(0xFFDC362E),
+              onTap: () async {
+                Navigator.pop(context);
+                await FirebaseAuth.instance.signOut();
+              },
+            ),
+          ),
+          const SizedBox(height: 16),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final bool esAprobador = widget.rol == 'admin' || widget.rol == 'supervisor';
@@ -893,7 +1097,7 @@ class _DashboardPageState extends State<DashboardPage> {
               if (box.isEmpty) return const SizedBox.shrink();
               return Center(
                 child: Container(
-                  margin: const EdgeInsets.only(right: 8),
+                  margin: const EdgeInsets.only(right: 16),
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                   decoration: BoxDecoration(color: const Color(0xFFF57F17), borderRadius: BorderRadius.circular(12)),
                   child: Row(
@@ -908,86 +1112,9 @@ class _DashboardPageState extends State<DashboardPage> {
               );
             },
           ),
-          PopupMenuButton<String>(
-            icon: const Icon(Icons.more_vert, color: Colors.white),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            color: Colors.white,
-            onSelected: (String result) async {
-              switch (result) {
-                case 'aprobar':
-                  Navigator.push(context, MaterialPageRoute(builder: (context) => EquiposAprobarPage(rol: widget.rol)));
-                  break;
-                case 'manual':
-                  Navigator.push(context, MaterialPageRoute(builder: (context) => const ManualPage()));
-                  break;
-                case 'admin':
-                  Navigator.push(context, MaterialPageRoute(builder: (context) => const AdminUsuariosPage()));
-                  break;
-                case 'config':
-                  Navigator.push(context, MaterialPageRoute(builder: (context) => const PanelConfiguracionPage()));
-                  break;
-                case 'logout':
-                  await FirebaseAuth.instance.signOut();
-                  break;
-              }
-            },
-            itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
-              if (esAprobador) ...[
-                PopupMenuItem<String>(
-                  value: 'aprobar',
-                  child: StreamBuilder<QuerySnapshot>(
-                    stream: FirebaseFirestore.instance.collection('ediciones_pendientes').snapshots(),
-                    builder: (context, snapshot) {
-                      int pendientesCount = snapshot.hasData ? snapshot.data!.docs.length : 0;
-                      return Row(
-                        children: [
-                          const Icon(Icons.fact_check, color: Color(0xFF1F5C3D)),
-                          const SizedBox(width: 12),
-                          const Expanded(child: Text('Equipos por Aprobar', style: TextStyle(color: Color(0xFF1A1C1E)))),
-                          if (pendientesCount > 0)
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFDC362E),
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              child: Text(
-                                '$pendientesCount',
-                                style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
-                              ),
-                            ),
-                        ],
-                      );
-                    }
-                  ),
-                ),
-                const PopupMenuDivider(),
-              ],
-              PopupMenuItem<String>(
-                value: 'manual',
-                child: Row(children: const [Icon(Icons.picture_as_pdf, color: Color(0xFF1F5C3D)), SizedBox(width: 12), Text('Manual de Mantenimiento', style: TextStyle(color: Color(0xFF1A1C1E)))]),
-              ),
-              if (widget.rol == 'admin') ...[
-                PopupMenuItem<String>(
-                  value: 'admin',
-                  child: Row(children: const [Icon(Icons.admin_panel_settings, color: Color(0xFF1F5C3D)), SizedBox(width: 12), Text('Control de Accesos', style: TextStyle(color: Color(0xFF1A1C1E)))]),
-                ),
-              ],
-              if (esAprobador) ...[
-                PopupMenuItem<String>(
-                  value: 'config',
-                  child: Row(children: const [Icon(Icons.settings, color: Color(0xFF1F5C3D)), SizedBox(width: 12), Text('Configuración del Sistema', style: TextStyle(color: Color(0xFF1A1C1E)))]),
-                ),
-              ],
-              const PopupMenuDivider(),
-              PopupMenuItem<String>(
-                value: 'logout',
-                child: Row(children: const [Icon(Icons.logout, color: Color(0xFFDC362E)), SizedBox(width: 12), Text('Cerrar Sesión', style: TextStyle(color: Color(0xFFDC362E)))]),
-              ),
-            ],
-          ) 
         ],
       ),
+      drawer: _buildDrawer(esAprobador),
       body: esAprobador
           ? IndexedStack(
               index: _currentIndex,
