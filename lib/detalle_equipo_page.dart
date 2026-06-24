@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'formulario_equipo.dart';
 import 'equipo_form_provider.dart';
 import 'equipos_list_provider.dart';
@@ -9,6 +9,12 @@ import 'generador_pdf.dart';
 import 'sincronizacion_service.dart';
 import 'image_cache_manager.dart';
 import 'imagen_drive_widget.dart';
+
+const Color _isaPrimary = Color(0xFF1F5C3D);
+const Color _isaBackground = Color(0xFFF5F6F7);
+const Color _isaTextPrimary = Color(0xFF1A1C1E);
+const Color _isaTextSecondary = Color(0xFF5F6368);
+const Color _isaDivider = Color(0xFFEBEBEB);
 
 class DetalleEquipoPage extends StatelessWidget {
   final String documentId;
@@ -29,7 +35,7 @@ class DetalleEquipoPage extends StatelessWidget {
         barrierDismissible: false,
         builder: (BuildContext context) {
           return const Center(
-            child: CircularProgressIndicator(color: Color(0xFF1F5C3D)),
+            child: CircularProgressIndicator(strokeWidth: 3, color: _isaPrimary),
           );
         },
       );
@@ -93,31 +99,54 @@ class DetalleEquipoPage extends StatelessWidget {
       if (context.mounted) {
         Navigator.of(context).pop();
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
+          SnackBar(
+            content: Text('Error: $e'),
+            backgroundColor: const Color(0xFFDC362E),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
         );
       }
     }
   }
 
   void _confirmarEliminacion(BuildContext context, Map<String, dynamic> datosActuales) {
+    HapticFeedback.mediumImpact();
     showDialog(
       context: context,
       builder: (BuildContext dialogContext) {
         return AlertDialog(
-          title: const Text('Eliminar Equipo'),
-          content: const Text('¿Estás seguro de que deseas eliminar este registro de forma permanente?'),
+          title: const Row(
+            children: [
+              Icon(Icons.warning_amber_rounded, color: Color(0xFFDC362E), size: 28),
+              SizedBox(width: 12),
+              Text('Eliminar Equipo', style: TextStyle(fontWeight: FontWeight.bold)),
+            ],
+          ),
+          content: const Text(
+            '¿Estás seguro de que deseas eliminar este registro de forma permanente? Esta acción no se puede deshacer.',
+            style: TextStyle(color: _isaTextSecondary, height: 1.5),
+          ),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          actionsPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(dialogContext).pop(),
-              child: const Text('CANCELAR', style: TextStyle(color: Color(0xFF5F6368))),
+              child: const Text('CANCELAR', style: TextStyle(color: _isaTextSecondary, fontWeight: FontWeight.w600)),
             ),
             ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFDC362E)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFDC362E),
+                foregroundColor: Colors.white,
+                elevation: 0,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              ),
               onPressed: () {
                 Navigator.of(dialogContext).pop();
                 _eliminarEquipo(context, datosActuales);
               },
-              child: const Text('ELIMINAR', style: TextStyle(color: Colors.white)),
+              child: const Text('ELIMINAR', style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 0.5)),
             ),
           ],
         );
@@ -126,6 +155,7 @@ class DetalleEquipoPage extends StatelessWidget {
   }
 
   void _editarEquipo(BuildContext context, Map<String, dynamic> datosActuales) async {
+    HapticFeedback.lightImpact();
     final formProvider = Provider.of<EquipoFormProvider>(context, listen: false);
     formProvider.cargarLevantamientoExistente(documentId, datosActuales);
     
@@ -154,89 +184,248 @@ class DetalleEquipoPage extends StatelessWidget {
     return timestamp.toString();
   }
 
-  Widget _buildFilaDato(String etiqueta, String valor) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6.0),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          if (constraints.maxWidth < 400) {
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  etiqueta,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFF5F6368),
-                    fontSize: 13,
+  void _mostrarDetalleRuta(BuildContext context, String fullPath, String titulo) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        final partes = fullPath.split('/').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
+        return Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+          ),
+          padding: const EdgeInsets.fromLTRB(24, 12, 24, 32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE0E2E5),
+                    borderRadius: BorderRadius.circular(2),
                   ),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  valor.isEmpty ? 'N/D' : valor,
-                  style: const TextStyle(
-                    color: Color(0xFF1A1C1E),
-                    fontSize: 14,
+              ),
+              const SizedBox(height: 24),
+              Text(
+                titulo,
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: _isaTextPrimary,
+                  letterSpacing: -0.5,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Flexible(
+                child: SingleChildScrollView(
+                  child: Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: partes.asMap().entries.map((entry) {
+                      final isLast = entry.key == partes.length - 1;
+                      return Chip(
+                        label: Text(
+                          entry.value,
+                          style: TextStyle(
+                            color: isLast ? Colors.white : _isaPrimary,
+                            fontWeight: isLast ? FontWeight.bold : FontWeight.w500,
+                            fontSize: 13,
+                          ),
+                        ),
+                        backgroundColor: isLast ? _isaPrimary : _isaPrimary.withValues(alpha: 0.08),
+                        side: BorderSide.none,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      );
+                    }).toList(),
                   ),
                 ),
-              ],
-            );
-          } else {
-            return Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  flex: 2,
-                  child: Text(
-                    etiqueta,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w600,
-                      color: Color(0xFF5F6368),
-                      fontSize: 13,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  flex: 4,
-                  child: Text(
-                    valor.isEmpty ? 'N/D' : valor,
-                    style: const TextStyle(
-                      color: Color(0xFF1A1C1E),
-                      fontSize: 14,
-                    ),
-                  ),
-                ),
-              ],
-            );
-          }
-        },
-      ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
-  Widget _buildSeccionTarjeta(String titulo, List<Widget> hijos) {
-    return Card(
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: const BorderSide(color: Color(0xFFD9D9D9)),
+  Widget _buildPremiumPath(String path) {
+    final partes = path.split('/').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
+    if (partes.isEmpty) return const Text('No especificado', style: TextStyle(color: _isaTextSecondary, fontStyle: FontStyle.italic));
+    
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return Wrap(
+          spacing: 6,
+          runSpacing: 6,
+          children: partes.map((part) {
+            final isLast = part == partes.last;
+            return Container(
+              constraints: BoxConstraints(maxWidth: constraints.maxWidth),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: isLast ? _isaPrimary.withValues(alpha: 0.1) : _isaBackground,
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: isLast ? _isaPrimary.withValues(alpha: 0.3) : _isaDivider),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Flexible(
+                    child: Text(
+                      part,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: isLast ? FontWeight.w700 : FontWeight.w500,
+                        color: isLast ? _isaPrimary : _isaTextSecondary,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  if (!isLast) const Padding(padding: EdgeInsets.only(left: 6), child: Icon(Icons.arrow_forward_ios, size: 10, color: Color(0xFFD9D9D9))),
+                ],
+              ),
+            );
+          }).toList(),
+        );
+      }
+    );
+  }
+
+  Widget _buildFilaDato(BuildContext context, String etiqueta, String valor, {bool esRuta = false}) {
+    final bool isEmpty = valor.isEmpty;
+    final String displayValue = isEmpty ? 'No especificado' : valor;
+
+    Widget content = LayoutBuilder(
+      builder: (context, constraints) {
+        final isMobile = constraints.maxWidth < 450;
+        return Flex(
+          direction: isMobile ? Axis.vertical : Axis.horizontal,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(
+              width: isMobile ? double.infinity : constraints.maxWidth * 0.35,
+              child: Padding(
+                padding: EdgeInsets.only(bottom: isMobile ? 6.0 : 0),
+                child: Text(
+                  etiqueta.toUpperCase(),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF9AA0A6),
+                    fontSize: 11,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ),
+            ),
+            if (!isMobile) const SizedBox(width: 16),
+            Expanded(
+              flex: isMobile ? 0 : 1,
+              child: esRuta && !isEmpty
+                  ? _buildPremiumPath(valor)
+                  : SelectableText(
+                      displayValue,
+                      style: TextStyle(
+                        color: isEmpty ? const Color(0xFF9AA0A6) : _isaTextPrimary,
+                        fontSize: 15,
+                        fontWeight: isEmpty ? FontWeight.normal : FontWeight.w500,
+                        fontStyle: isEmpty ? FontStyle.italic : FontStyle.normal,
+                        height: 1.4,
+                      ),
+                    ),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (esRuta && !isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8.0),
+        child: InkWell(
+          onTap: () {
+             HapticFeedback.selectionClick();
+            _mostrarDetalleRuta(context, valor, etiqueta);
+          },
+          borderRadius: BorderRadius.circular(12),
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: _isaDivider),
+            ),
+            child: Row(
+              children: [
+                Expanded(child: content),
+                const Padding(
+                  padding: EdgeInsets.only(left: 12.0),
+                  child: Icon(Icons.open_in_full_rounded, size: 18, color: Color(0xFFD9D9D9)),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 12.0),
+      child: content,
+    );
+  }
+
+  Widget _buildSeccionTarjeta(String titulo, IconData icono, List<Widget> hijos) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 24.0),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: _isaDivider),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF1A1C1E).withValues(alpha: 0.02),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+          ),
+        ],
       ),
-      margin: const EdgeInsets.only(bottom: 16.0),
       child: Padding(
-        padding: const EdgeInsets.all(16.0),
+        padding: const EdgeInsets.all(24.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              titulo,
-              style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
-                color: Color(0xFF1F5C3D),
-              ),
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: _isaPrimary.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(icono, color: _isaPrimary, size: 24),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Text(
+                    titulo,
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: _isaTextPrimary,
+                      letterSpacing: -0.2,
+                    ),
+                  ),
+                ),
+              ],
             ),
-            const Divider(color: Color(0xFFD9D9D9), height: 24),
+            const SizedBox(height: 20),
+            const Divider(color: _isaDivider, height: 1),
+            const SizedBox(height: 16),
             ...hijos,
           ],
         ),
@@ -252,36 +441,41 @@ class DetalleEquipoPage extends StatelessWidget {
         
         if (snapshot.hasError) {
           return Scaffold(
-            appBar: AppBar(title: const Text('Error'), backgroundColor: const Color(0xFF1F5C3D)),
-            body: const Center(child: Text('Error al cargar los datos.')),
+            appBar: AppBar(title: const Text('Error'), backgroundColor: _isaPrimary),
+            body: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.error_outline_rounded, size: 64, color: Color(0xFFDC362E)),
+                  const SizedBox(height: 16),
+                  Text('Error al cargar los datos: ${snapshot.error}', style: const TextStyle(color: _isaTextSecondary)),
+                ],
+              ),
+            ),
           );
         }
 
         if (snapshot.hasData && !snapshot.data!.exists) {
           return Scaffold(
-            appBar: AppBar(title: const Text('Equipo Eliminado'), backgroundColor: const Color(0xFF1F5C3D)),
-            body: const Center(child: Text('Este equipo ya no existe en la base de datos.')),
+            backgroundColor: _isaBackground,
+            appBar: AppBar(title: const Text('Equipo Eliminado'), backgroundColor: _isaPrimary),
+            body: const Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.delete_sweep_rounded, size: 64, color: _isaTextSecondary),
+                  SizedBox(height: 16),
+                  Text('Este equipo ya no existe en la base de datos.', style: TextStyle(fontSize: 16, color: _isaTextSecondary)),
+                ],
+              ),
+            ),
           );
         }
 
         final datos = snapshot.hasData ? (snapshot.data!.data() as Map<String, dynamic>?) ?? datosIniciales : datosIniciales;
 
-        final usuarioActual = FirebaseAuth.instance.currentUser;
-        final String currentUid = usuarioActual?.uid.trim() ?? '';
-        final String currentEmail = usuarioActual?.email?.trim().toLowerCase() ?? '';
-        
-        final String docUid = datos['uid_creador']?.toString().trim() ?? '';
-        final String docEmail = datos['email_creador']?.toString().trim().toLowerCase() ?? '';
-        final String docOriginal = datos['email_original']?.toString().trim().toLowerCase() ?? '';
-        
-        final bool esPropietario = currentUid.isNotEmpty && (
-          docUid == currentUid || 
-          docEmail == currentEmail ||
-          docOriginal == currentEmail
-        );
-        
-        final bool tienePermisosEliminar = rolUsuario == 'admin' || rolUsuario == 'supervisor';
-        final bool esConsultor = rolUsuario == 'consultor';
+        final bool puedeEditar = rolUsuario == 'admin' || rolUsuario == 'supervisor' || rolUsuario == 'tecnico';
+        final bool puedeEliminar = rolUsuario == 'admin' || rolUsuario == 'supervisor';
 
         final fechaModificacion = datos['ultimaModificacion'] ?? 
                                   datos['sincronizadoEn'] ?? 
@@ -289,144 +483,171 @@ class DetalleEquipoPage extends StatelessWidget {
                                   datos['ultima_modificacion'];
 
         return Scaffold(
-          backgroundColor: const Color(0xFFF5F6F7),
+          backgroundColor: _isaBackground,
           appBar: AppBar(
-            title: Text(datos['codigo'] ?? 'Detalle del Equipo'),
-            backgroundColor: const Color(0xFF1F5C3D),
-            foregroundColor: const Color(0xFFFFFFFF),
+            title: Text(
+              datos['codigo'] ?? 'Detalle del Equipo',
+              style: const TextStyle(fontWeight: FontWeight.w600, letterSpacing: 0.5),
+            ),
+            backgroundColor: _isaPrimary,
+            foregroundColor: Colors.white,
+            elevation: 0,
+            centerTitle: true,
             actions: [
-              IconButton(
-                icon: const Icon(Icons.picture_as_pdf),
-                onPressed: () => GeneradorPdf.generarReporteEquipo(context, datos),
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 8.0),
+                child: FilledButton.icon(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: Colors.white.withValues(alpha: 0.15),
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                  ),
+                  icon: const Icon(Icons.picture_as_pdf_rounded, size: 18),
+                  label: const Text('Descargar Ficha', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                  onPressed: () {
+                    HapticFeedback.lightImpact();
+                    GeneradorPdf.generarReporteEquipo(context, datos);
+                  },
+                ),
               ),
+              if (puedeEditar || puedeEliminar)
+                PopupMenuButton<String>(
+                  icon: const Icon(Icons.more_vert_rounded, color: Colors.white),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  color: Colors.white,
+                  onSelected: (value) {
+                    if (value == 'editar') {
+                      _editarEquipo(context, datos);
+                    } else if (value == 'eliminar') {
+                      _confirmarEliminacion(context, datos);
+                    }
+                  },
+                  itemBuilder: (context) => [
+                    if (puedeEditar)
+                      const PopupMenuItem(
+                        value: 'editar',
+                        child: Row(
+                          children: [
+                            Icon(Icons.edit_rounded, color: _isaPrimary, size: 20),
+                            SizedBox(width: 12),
+                            Text(
+                              'Editar Registro',
+                              style: TextStyle(color: _isaTextPrimary, fontWeight: FontWeight.w500),
+                            ),
+                          ],
+                        ),
+                      ),
+                    if (puedeEliminar)
+                      const PopupMenuItem(
+                        value: 'eliminar',
+                        child: Row(
+                          children: [
+                            Icon(Icons.delete_outline_rounded, color: Color(0xFFDC362E), size: 20),
+                            SizedBox(width: 12),
+                            Text(
+                              'Eliminar Equipo',
+                              style: TextStyle(color: Color(0xFFDC362E), fontWeight: FontWeight.w600),
+                            ),
+                          ],
+                        ),
+                      ),
+                  ],
+                ),
+              const SizedBox(width: 8),
             ],
           ),
-          body: SingleChildScrollView(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              children: [
-                _buildSeccionTarjeta('Información Principal', [
-                  _buildFilaDato('Código (Tag)', datos['codigo'] ?? ''),
-                  _buildFilaDato('Nombre en Sistema', datos['nombre'] ?? ''),
-                  _buildFilaDato('Descripción', datos['descripcion'] ?? ''),
-                  _buildFilaDato('Equipo Padre', datos['equipoPadre'] ?? ''),
-                  _buildFilaDato('Familia', datos['familia'] ?? ''),
-                  _buildFilaDato('Área de Proceso', datos['areaProceso'] ?? ''),
-                  _buildFilaDato('Ubicación Específica', datos['ubicacionTecnica'] ?? ''),
-                  _buildFilaDato('Centro de Costo', datos['centro_costo'] ?? ''),
-                ]),
-                _buildSeccionTarjeta('Especificaciones Técnicas', [
-                  _buildFilaDato('Marca', (datos['fabricante']?.toString().isNotEmpty == true ? datos['fabricante'] : datos['marca']) ?? ''),
-                  _buildFilaDato('Modelo', datos['modelo'] ?? ''),
-                  _buildFilaDato('Número de Serie', datos['numeroSerie'] ?? ''),
-                  _buildFilaDato('Variable Medida', datos['variableMedida'] ?? ''),
-                  _buildFilaDato('Señal E/S', datos['senalEntradaSalida'] ?? ''),
-                  _buildFilaDato('Rango LRV', datos['rangoLrv']?.toString() ?? ''),
-                  _buildFilaDato('Rango URV', datos['rangoUrv']?.toString() ?? ''),
-                  _buildFilaDato('Unidad', datos['unidadIngenieria'] ?? ''),
-                ]),
-                _buildSeccionTarjeta('Estado y Registro', [
-                  _buildFilaDato('Última Modificación', _formatearFecha(fechaModificacion)),
-                  _buildFilaDato('Plan de Tareas', datos['plan_tareas'] ?? ''),
-                  _buildFilaDato('Observaciones', datos['observacion'] ?? ''),
-                  _buildFilaDato('Supervisor o Encargado', datos['supervisor'] ?? ''),
-                  _buildFilaDato('Notas Importadas', datos['notas'] ?? ''),
-                  _buildFilaDato(
-                    'Registrado por', 
-                    (datos['nombre_creador'] != null && datos['nombre_creador'].toString().trim().isNotEmpty) 
-                        ? '${datos['nombre_creador']} (${datos['email_creador']})' 
-                        : (datos['email_creador'] ?? 'No registrado')
-                  ),
-                ]),
-                if (datos['fotoPlacaUrl'] != null || datos['fotoPlacaAdicionalUrl'] != null || datos['fotoGeneralUrl'] != null)
-                  _buildSeccionTarjeta('Evidencia Visual', [
-                    if (datos['fotoPlacaUrl'] != null)
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text('Placa Técnica', style: TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF5F6368))),
-                          const SizedBox(height: 8),
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(8),
-                            child: ImagenDriveWidget(
-                              fileId: datos['fotoPlacaUrl'],
+          body: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 800),
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 24.0),
+                child: Column(
+                  children: [
+                    _buildSeccionTarjeta('Información Principal', Icons.info_outline_rounded, [
+                      _buildFilaDato(context, 'Código (Tag)', datos['codigo'] ?? ''),
+                      _buildFilaDato(context, 'Nombre en Sistema', datos['nombre'] ?? ''),
+                      _buildFilaDato(context, 'Descripción', datos['descripcion'] ?? ''),
+                      _buildFilaDato(context, 'Equipo Padre', datos['equipoPadre'] ?? ''),
+                      _buildFilaDato(context, 'Familia', datos['familia'] ?? ''),
+                      _buildFilaDato(context, 'Área de Proceso', datos['areaProceso'] ?? '', esRuta: true),
+                      _buildFilaDato(context, 'Ubicación Específica', datos['ubicacionTecnica'] ?? '', esRuta: true),
+                      _buildFilaDato(context, 'Centro de Costo', datos['centro_costo'] ?? ''),
+                    ]),
+                    _buildSeccionTarjeta('Especificaciones Técnicas', Icons.precision_manufacturing_rounded, [
+                      _buildFilaDato(context, 'Marca', (datos['fabricante']?.toString().isNotEmpty == true ? datos['fabricante'] : datos['marca']) ?? ''),
+                      _buildFilaDato(context, 'Modelo', datos['modelo'] ?? ''),
+                      _buildFilaDato(context, 'Número de Serie', datos['numeroSerie'] ?? ''),
+                      _buildFilaDato(context, 'Variable Medida', datos['variableMedida'] ?? ''),
+                      _buildFilaDato(context, 'Señal E/S', datos['senalEntradaSalida'] ?? ''),
+                      _buildFilaDato(context, 'Rango LRV', datos['rangoLrv']?.toString() ?? ''),
+                      _buildFilaDato(context, 'Rango URV', datos['rangoUrv']?.toString() ?? ''),
+                      _buildFilaDato(context, 'Unidad', datos['unidadIngenieria'] ?? ''),
+                    ]),
+                    _buildSeccionTarjeta('Estado y Registro', Icons.history_rounded, [
+                      _buildFilaDato(context, 'Última Modificación', _formatearFecha(fechaModificacion)),
+                      _buildFilaDato(context, 'Plan de Tareas', datos['plan_tareas'] ?? ''),
+                      _buildFilaDato(context, 'Observaciones', datos['observacion'] ?? ''),
+                      _buildFilaDato(context, 'Supervisor o Encargado', datos['supervisor'] ?? ''),
+                      _buildFilaDato(context, 'Notas Importadas', datos['notas'] ?? ''),
+                      _buildFilaDato(
+                        context,
+                        'Registrado por', 
+                        (datos['nombre_creador'] != null && datos['nombre_creador'].toString().trim().isNotEmpty) 
+                            ? '${datos['nombre_creador']} (${datos['email_creador']})' 
+                            : (datos['email_creador'] ?? 'No registrado')
+                      ),
+                    ]),
+                    if (datos['fotoPlacaUrl'] != null || datos['fotoPlacaAdicionalUrl'] != null || datos['fotoGeneralUrl'] != null)
+                      _buildSeccionTarjeta('Evidencia Visual', Icons.photo_camera_rounded, [
+                        if (datos['fotoPlacaUrl'] != null) ...[
+                          const Text('PLACA TÉCNICA', style: TextStyle(fontWeight: FontWeight.w700, color: Color(0xFF9AA0A6), fontSize: 11, letterSpacing: 0.5)),
+                          const SizedBox(height: 12),
+                          Container(
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: _isaDivider),
+                            ),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(16),
+                              child: ImagenDriveWidget(fileId: datos['fotoPlacaUrl']),
                             ),
                           ),
-                          const SizedBox(height: 16),
+                          const SizedBox(height: 32),
                         ],
-                      ),
-                    if (datos['fotoPlacaAdicionalUrl'] != null)
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text('Placa Técnica (Adicional)', style: TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF5F6368))),
-                          const SizedBox(height: 8),
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(8),
-                            child: ImagenDriveWidget(
-                              fileId: datos['fotoPlacaAdicionalUrl'],
+                        if (datos['fotoPlacaAdicionalUrl'] != null) ...[
+                          const Text('PLACA TÉCNICA (ADICIONAL)', style: TextStyle(fontWeight: FontWeight.w700, color: Color(0xFF9AA0A6), fontSize: 11, letterSpacing: 0.5)),
+                          const SizedBox(height: 12),
+                          Container(
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: _isaDivider),
+                            ),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(16),
+                              child: ImagenDriveWidget(fileId: datos['fotoPlacaAdicionalUrl']),
                             ),
                           ),
-                          const SizedBox(height: 16),
+                          const SizedBox(height: 32),
                         ],
-                      ),
-                    if (datos['fotoGeneralUrl'] != null)
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text('Equipo General', style: TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF5F6368))),
-                          const SizedBox(height: 8),
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(8),
-                            child: ImagenDriveWidget(
-                              fileId: datos['fotoGeneralUrl'],
+                        if (datos['fotoGeneralUrl'] != null) ...[
+                          const Text('EQUIPO GENERAL', style: TextStyle(fontWeight: FontWeight.w700, color: Color(0xFF9AA0A6), fontSize: 11, letterSpacing: 0.5)),
+                          const SizedBox(height: 12),
+                          Container(
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: _isaDivider),
+                            ),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(16),
+                              child: ImagenDriveWidget(fileId: datos['fotoGeneralUrl']),
                             ),
                           ),
                         ],
-                      ),
-                  ]),
-              ],
-            ),
-          ),
-          bottomNavigationBar: esConsultor ? null : SafeArea(
-            child: Container(
-              padding: const EdgeInsets.all(16.0),
-              decoration: const BoxDecoration(
-                color: Color(0xFFFFFFFF),
-                border: Border(top: BorderSide(color: Color(0xFFD9D9D9))),
-              ),
-              child: Row(
-                children: [
-                  if (tienePermisosEliminar) ...[
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: const Color(0xFFDC362E),
-                          side: const BorderSide(color: Color(0xFFDC362E)),
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        ),
-                        onPressed: () => _confirmarEliminacion(context, datos),
-                        icon: const Icon(Icons.delete_outline),
-                        label: const Text('ELIMINAR', style: TextStyle(fontWeight: FontWeight.w700)),
-                      ),
-                    ),
-                    const SizedBox(width: 16),
+                      ]),
                   ],
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF1F5C3D),
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      ),
-                      onPressed: () => _editarEquipo(context, datos),
-                      icon: const Icon(Icons.edit),
-                      label: const Text('EDITAR', style: TextStyle(fontWeight: FontWeight.w700)),
-                    ),
-                  ),
-                ],
+                ),
               ),
             ),
           ),

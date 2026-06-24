@@ -35,7 +35,7 @@ class _ImagenDriveWidgetState extends State<ImagenDriveWidget> {
     showDialog(
       context: context,
       useSafeArea: false,
-      barrierColor: Colors.black.withValues(alpha: 0.9),
+      barrierColor: const Color(0xE6000000),
       builder: (BuildContext context) {
         return Scaffold(
           backgroundColor: Colors.transparent,
@@ -50,6 +50,8 @@ class _ImagenDriveWidgetState extends State<ImagenDriveWidget> {
                   child: Image.memory(
                     imageBytes,
                     fit: BoxFit.contain,
+                    gaplessPlayback: true,
+                    cacheWidth: 1200,
                   ),
                 ),
               ),
@@ -76,7 +78,7 @@ class _ImagenDriveWidgetState extends State<ImagenDriveWidget> {
         if (snapshot.connectionState == ConnectionState.waiting || snapshot.connectionState == ConnectionState.none) {
           return SizedBox(
             width: widget.width,
-            height: widget.height ?? 200, // Altura provisional mientras carga
+            height: widget.height ?? 200,
             child: const Center(
               child: CircularProgressIndicator(
                 color: Color(0xFF1F5C3D),
@@ -90,9 +92,9 @@ class _ImagenDriveWidgetState extends State<ImagenDriveWidget> {
           return SizedBox(
             width: widget.width,
             height: widget.height ?? 200,
-            child: Container(
-              color: const Color(0xFFE0E0E0),
-              child: const Column(
+            child: const ColoredBox(
+              color: Color(0xFFE0E0E0),
+              child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Icon(Icons.image_not_supported, color: Color(0xFF9E9E9E), size: 40),
@@ -111,38 +113,22 @@ class _ImagenDriveWidgetState extends State<ImagenDriveWidget> {
           onTap: () => _abrirVisorPantallaCompleta(context, snapshot.data!),
           child: ConstrainedBox(
             constraints: BoxConstraints(
-              maxHeight: widget.maxHeight, // Límite de altura
+              maxHeight: widget.maxHeight,
             ),
             child: Image.memory(
               snapshot.data!,
               width: widget.width,
-              height: widget.height, // Al ser nulo, empuja los bordes adaptándose perfectamente
+              height: widget.height,
               fit: widget.fit,
-              frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
-                if (wasSynchronouslyLoaded) {
-                  return child;
-                }
-                if (frame == null) {
-                  return SizedBox(
-                    width: widget.width,
-                    height: widget.height ?? 200,
-                    child: const Center(
-                      child: CircularProgressIndicator(
-                        color: Color(0xFF1F5C3D),
-                        strokeWidth: 2,
-                      ),
-                    ),
-                  );
-                }
-                return child;
-              },
+              gaplessPlayback: true,
+              cacheWidth: 800,
               errorBuilder: (context, error, stackTrace) {
                 return SizedBox(
                   width: widget.width,
                   height: widget.height ?? 200,
-                  child: Container(
-                    color: const Color(0xFFE0E0E0),
-                    child: const Column(
+                  child: const ColoredBox(
+                    color: Color(0xFFE0E0E0),
+                    child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Icon(Icons.broken_image, color: Color(0xFFDC362E), size: 40),

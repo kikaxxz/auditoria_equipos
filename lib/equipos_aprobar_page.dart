@@ -40,7 +40,8 @@ class _VisorImagenDialogoState extends State<_VisorImagenDialogo> {
       return Scaffold(
         backgroundColor: Colors.black,
         appBar: AppBar(
-          backgroundColor: Colors.black,
+          backgroundColor: Colors.transparent,
+          elevation: 0,
           title: Text(titulo, style: const TextStyle(color: Colors.white, fontSize: 16)),
           iconTheme: const IconThemeData(color: Colors.white),
         ),
@@ -49,7 +50,10 @@ class _VisorImagenDialogoState extends State<_VisorImagenDialogo> {
             panEnabled: true,
             minScale: 1.0,
             maxScale: 4.0,
-            child: Image.memory(base64Decode(base64Data)),
+            child: Hero(
+              tag: widget.fileId,
+              child: Image.memory(base64Decode(base64Data)),
+            ),
           ),
         ),
       );
@@ -62,62 +66,81 @@ class _VisorImagenDialogoState extends State<_VisorImagenDialogo> {
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: const Color(0xFFD9D9D9)),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFEBEBEB)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.02),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          )
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             decoration: const BoxDecoration(
               color: Color(0xFFF9FAFB),
-              borderRadius: BorderRadius.vertical(top: Radius.circular(8)),
+              borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
             ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
                   widget.titulo,
-                  style: const TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF5F6368), fontSize: 12),
+                  style: const TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF5F6368), fontSize: 12, letterSpacing: 0.5),
                 ),
-                const Icon(Icons.zoom_out_map, size: 14, color: Color(0xFF5F6368)),
+                const Icon(Icons.zoom_out_map, size: 16, color: Color(0xFF5F6368)),
               ],
             ),
           ),
-          const Divider(height: 1),
+          const Divider(height: 1, color: Color(0xFFEBEBEB)),
           Padding(
-            padding: const EdgeInsets.all(12),
-            child: FutureBuilder<String?>(
-              future: _futureImagen,
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const SizedBox(
-                    height: 150,
-                    child: Center(child: CircularProgressIndicator(color: Color(0xFF1F5C3D))),
-                  );
-                }
-                if (snapshot.hasData && snapshot.data != null) {
-                  try {
-                    return GestureDetector(
-                      onTap: () => _mostrarImagenCompleta(context, snapshot.data!, widget.titulo),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(4),
-                        child: ConstrainedBox(
-                          constraints: const BoxConstraints(maxHeight: 300),
-                          child: Image.memory(
-                            base64Decode(snapshot.data!),
-                            fit: BoxFit.contain,
-                          ),
+            padding: const EdgeInsets.all(16),
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 300),
+              child: FutureBuilder<String?>(
+                key: ValueKey(_futureImagen),
+                future: _futureImagen,
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const SizedBox(
+                      height: 150,
+                      child: Center(
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Color(0xFF1F5C3D),
                         ),
                       ),
                     );
-                  } catch (_) {
-                    return _buildErrorImagen();
                   }
-                }
-                return _buildErrorImagen();
-              },
+                  if (snapshot.hasData && snapshot.data != null) {
+                    try {
+                      return GestureDetector(
+                        onTap: () => _mostrarImagenCompleta(context, snapshot.data!, widget.titulo),
+                        child: Hero(
+                          tag: widget.fileId,
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: ConstrainedBox(
+                              constraints: const BoxConstraints(maxHeight: 250),
+                              child: Image.memory(
+                                base64Decode(snapshot.data!),
+                                fit: BoxFit.contain,
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+                    } catch (_) {
+                      return _buildErrorImagen();
+                    }
+                  }
+                  return _buildErrorImagen();
+                },
+              ),
             ),
           ),
         ],
@@ -132,9 +155,9 @@ class _VisorImagenDialogoState extends State<_VisorImagenDialogo> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.broken_image, color: Color(0xFF5F6368), size: 32),
-            SizedBox(height: 8),
-            Text('Evidencia gráfica no disponible', style: TextStyle(color: Color(0xFF5F6368), fontSize: 12)),
+            Icon(Icons.broken_image_rounded, color: Color(0xFFD9D9D9), size: 40),
+            SizedBox(height: 12),
+            Text('Evidencia gráfica no disponible', style: TextStyle(color: Color(0xFF5F6368), fontSize: 13)),
           ],
         ),
       ),
@@ -152,22 +175,13 @@ class EquiposAprobarPage extends StatefulWidget {
 }
 
 class _EquiposAprobarPageState extends State<EquiposAprobarPage> {
+  // Lógica de Sincronización inalterada
   Future<void> _aprobarSolicitud(String idPendiente, Map<String, dynamic> datosPropuestos, String tipoOperacion, String? idOriginal) async {
     try {
       final List<String> urlsAEliminar = [];
-      
-      if (datosPropuestos.containsKey('fotoPlacaUrlAntigua')) {
-        urlsAEliminar.add(datosPropuestos['fotoPlacaUrlAntigua']);
-        datosPropuestos.remove('fotoPlacaUrlAntigua');
-      }
-      if (datosPropuestos.containsKey('fotoPlacaAdicionalUrlAntigua')) {
-        urlsAEliminar.add(datosPropuestos['fotoPlacaAdicionalUrlAntigua']);
-        datosPropuestos.remove('fotoPlacaAdicionalUrlAntigua');
-      }
-      if (datosPropuestos.containsKey('fotoGeneralUrlAntigua')) {
-        urlsAEliminar.add(datosPropuestos['fotoGeneralUrlAntigua']);
-        datosPropuestos.remove('fotoGeneralUrlAntigua');
-      }
+      if (datosPropuestos.containsKey('fotoPlacaUrlAntigua')) { urlsAEliminar.add(datosPropuestos['fotoPlacaUrlAntigua']); datosPropuestos.remove('fotoPlacaUrlAntigua'); }
+      if (datosPropuestos.containsKey('fotoPlacaAdicionalUrlAntigua')) { urlsAEliminar.add(datosPropuestos['fotoPlacaAdicionalUrlAntigua']); datosPropuestos.remove('fotoPlacaAdicionalUrlAntigua'); }
+      if (datosPropuestos.containsKey('fotoGeneralUrlAntigua')) { urlsAEliminar.add(datosPropuestos['fotoGeneralUrlAntigua']); datosPropuestos.remove('fotoGeneralUrlAntigua'); }
       
       datosPropuestos.remove('urls_subidas_temporalmente');
 
@@ -179,7 +193,7 @@ class _EquiposAprobarPageState extends State<EquiposAprobarPage> {
       if (tipoOperacion == 'modificacion' && idOriginal != null) {
         final docOriginal = await FirebaseFirestore.instance.collection('equipos').doc(idOriginal).get();
         if (docOriginal.exists) {
-          areaAntigua = (docOriginal.data() as Map<String, dynamic>?)?['areaProceso']?.toString();
+          areaAntigua = docOriginal.data()?['areaProceso']?.toString();
         }
       }
 
@@ -218,12 +232,8 @@ class _EquiposAprobarPageState extends State<EquiposAprobarPage> {
         generarActualizaciones(areaNueva, 1);
       } else if (tipoOperacion == 'modificacion') {
         if (areaAntigua != areaNueva) {
-          if (areaAntigua != null && areaAntigua.trim().isNotEmpty) {
-            generarActualizaciones(areaAntigua, -1);
-          }
-          if (areaNueva != null && areaNueva.trim().isNotEmpty) {
-            generarActualizaciones(areaNueva, 1);
-          }
+          if (areaAntigua != null && areaAntigua.trim().isNotEmpty) { generarActualizaciones(areaAntigua, -1); }
+          if (areaNueva != null && areaNueva.trim().isNotEmpty) { generarActualizaciones(areaNueva, 1); }
         }
       }
 
@@ -236,14 +246,14 @@ class _EquiposAprobarPageState extends State<EquiposAprobarPage> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Solicitud aprobada e indicadores actualizados'), backgroundColor: Color(0xFF1F5C3D)),
+          const SnackBar(content: Text('Solicitud aprobada e indicadores actualizados', style: TextStyle(color: Colors.white)), backgroundColor: Color(0xFF1F5C3D), behavior: SnackBarBehavior.floating),
         );
         Navigator.pop(context);
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Error al procesar la aprobación'), backgroundColor: Color(0xFFDC362E)),
+          const SnackBar(content: Text('Error al procesar la aprobación'), backgroundColor: Color(0xFFDC362E), behavior: SnackBarBehavior.floating),
         );
       }
     }
@@ -252,21 +262,25 @@ class _EquiposAprobarPageState extends State<EquiposAprobarPage> {
   Future<void> _rechazarSolicitud(String idPendiente) async {
     final TextEditingController motivoController = TextEditingController();
 
-    // 1. Desplegar diálogo para capturar el motivo del rechazo
     final bool? confirmar = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Devolver a Técnico'),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('Devolver a Técnico', style: TextStyle(color: Color(0xFFDC362E), fontWeight: FontWeight.bold)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text('Especifique el motivo para que el operador pueda corregir el levantamiento:'),
-            const SizedBox(height: 12),
+            const Text('Especifique el motivo para que el operador pueda corregir el levantamiento:', style: TextStyle(fontSize: 14, color: Color(0xFF5F6368))),
+            const SizedBox(height: 16),
             TextField(
               controller: motivoController,
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 labelText: 'Motivo de corrección',
-                border: OutlineInputBorder(),
+                alignLabelWithHint: true,
+                filled: true,
+                fillColor: const Color(0xFFF9FAFB),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFDC362E))),
               ),
               maxLines: 3,
             ),
@@ -278,7 +292,10 @@ class _EquiposAprobarPageState extends State<EquiposAprobarPage> {
             child: const Text('CANCELAR', style: TextStyle(color: Color(0xFF5F6368))),
           ),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFDC362E)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFDC362E),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
             onPressed: () {
               if (motivoController.text.trim().isNotEmpty) {
                 Navigator.pop(context, true);
@@ -290,8 +307,8 @@ class _EquiposAprobarPageState extends State<EquiposAprobarPage> {
       ),
     );
 
-    // 2. Ejecutar la actualización de estado si se confirmó el motivo
     if (confirmar == true) {
+      if (!mounted) return;
       try {
         showDialog(
           context: context,
@@ -299,10 +316,7 @@ class _EquiposAprobarPageState extends State<EquiposAprobarPage> {
           builder: (context) => const Center(child: CircularProgressIndicator(color: Color(0xFF1F5C3D))),
         );
 
-        await FirebaseFirestore.instance
-            .collection('ediciones_pendientes')
-            .doc(idPendiente)
-            .update({
+        await FirebaseFirestore.instance.collection('ediciones_pendientes').doc(idPendiente).update({
           'estado': 'rechazado',
           'motivo_rechazo': motivoController.text.trim(),
           'fecha_rechazo': FieldValue.serverTimestamp(),
@@ -312,10 +326,7 @@ class _EquiposAprobarPageState extends State<EquiposAprobarPage> {
         if (mounted) {
           Navigator.pop(context);
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Registro devuelto al técnico exitosamente.'),
-              backgroundColor: Color(0xFFF57F17),
-            ),
+            const SnackBar(content: Text('Registro devuelto al técnico exitosamente.'), backgroundColor: Color(0xFFF57F17), behavior: SnackBarBehavior.floating),
           );
           Navigator.pop(context); 
         }
@@ -323,10 +334,7 @@ class _EquiposAprobarPageState extends State<EquiposAprobarPage> {
         if (mounted) {
           Navigator.pop(context); 
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Error al procesar la devolución: $e'),
-              backgroundColor: const Color(0xFFDC362E),
-            ),
+            SnackBar(content: Text('Error al procesar la devolución: $e'), backgroundColor: const Color(0xFFDC362E), behavior: SnackBarBehavior.floating),
           );
         }
       }
@@ -337,9 +345,14 @@ class _EquiposAprobarPageState extends State<EquiposAprobarPage> {
     if (node.isLeaf) {
       return ListTile(
         contentPadding: const EdgeInsets.only(left: 16, right: 24, top: 4, bottom: 4),
-        title: Text(node.name, style: const TextStyle(fontSize: 14)),
-        leading: const Icon(Icons.device_hub, color: Color(0xFF1F5C3D), size: 20),
+        title: Text(node.name, style: const TextStyle(fontSize: 14, color: Color(0xFF1A1C1E))),
+        leading: Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(color: const Color(0xFF1F5C3D).withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8)),
+          child: const Icon(Icons.device_hub, color: Color(0xFF1F5C3D), size: 18),
+        ),
         trailing: const Icon(Icons.check_circle_outline, color: Color(0xFF1F5C3D)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         onTap: () {
           setStateDialog(() {
             datosEditados['areaProceso'] = node.fullPath;
@@ -353,7 +366,7 @@ class _EquiposAprobarPageState extends State<EquiposAprobarPage> {
       data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
       child: ExpansionTile(
         tilePadding: const EdgeInsets.only(left: 16, right: 24),
-        title: Text(node.name, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+        title: Text(node.name, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFF1A1C1E))),
         leading: const Icon(Icons.folder_open, color: Color(0xFF1F5C3D)),
         children: [
           Padding(
@@ -377,24 +390,20 @@ class _EquiposAprobarPageState extends State<EquiposAprobarPage> {
           height: MediaQuery.of(context).size.height * 0.85,
           decoration: const BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
           ),
           child: Column(
             children: [
               Container(
-                padding: const EdgeInsets.all(16),
-                decoration: const BoxDecoration(
-                  border: Border(bottom: BorderSide(color: Color(0xFFD9D9D9))),
-                ),
+                padding: const EdgeInsets.fromLTRB(24, 16, 16, 16),
+                decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: Color(0xFFEBEBEB)))),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text(
-                      'Navegador de Ubicación',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1F5C3D)),
-                    ),
+                    const Text('Navegador de Ubicación', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1F5C3D))),
                     IconButton(
                       icon: const Icon(Icons.close, color: Color(0xFF5F6368)),
+                      splashRadius: 24,
                       onPressed: () => Navigator.pop(bottomSheetContext),
                     )
                   ],
@@ -402,7 +411,7 @@ class _EquiposAprobarPageState extends State<EquiposAprobarPage> {
               ),
               Expanded(
                 child: ListView(
-                  padding: const EdgeInsets.only(bottom: 24),
+                  padding: const EdgeInsets.only(bottom: 24, top: 8),
                   children: config.arbolJerarquico.children.values.map((child) => _buildTreeSelectionNode(child, config, datosEditados, setStateDialog, bottomSheetContext)).toList(),
                 ),
               ),
@@ -414,16 +423,28 @@ class _EquiposAprobarPageState extends State<EquiposAprobarPage> {
   }
 
   void _mostrarDialogoRevision(BuildContext context, String idPendiente, Map<String, dynamic> documento) {
-    final tipoOperacion = documento['tipo_operacion'] ?? 'creacion';
-    final idOriginal = documento['id_equipo_original'];
     final datosPropuestosOriginales = documento['datos_propuestos'] as Map<String, dynamic>? ?? {};
+    
+    String? idOriginal = documento['id_equipo_original'] ?? 
+                         datosPropuestosOriginales['id_equipo_original'] ?? 
+                         datosPropuestosOriginales['id_documento'];
+
+    if (idOriginal != null && idOriginal.trim().isEmpty) {
+      idOriginal = null;
+    }
+
+    String tipoOperacion = documento['tipo_operacion'] ?? datosPropuestosOriginales['tipo_operacion'] ?? 'creacion';
+    
+    if (tipoOperacion == 'modificacion' && idOriginal == null) {
+      tipoOperacion = 'creacion';
+    }
     
     Map<String, dynamic> datosEditados = Map.from(datosPropuestosOriginales);
     bool enModoEdicion = false;
     final config = Provider.of<ConfiguracionProvider>(context, listen: false);
 
     Future<DocumentSnapshot>? futureOriginalDoc;
-    if (tipoOperacion == 'modificacion' && idOriginal != null && idOriginal.isNotEmpty) {
+    if (tipoOperacion == 'modificacion' && idOriginal != null) {
       futureOriginalDoc = FirebaseFirestore.instance.collection('equipos').doc(idOriginal).get();
     }
 
@@ -434,97 +455,128 @@ class _EquiposAprobarPageState extends State<EquiposAprobarPage> {
           builder: (context, setStateDialog) {
             return Dialog(
               insetPadding: const EdgeInsets.all(16),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              child: Container(
-                width: MediaQuery.of(context).size.width > 600 ? 600 : double.infinity,
-                constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.85),
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Expanded(
-                          child: Text(
-                            tipoOperacion == 'creacion' ? 'Revisión de Nuevo Equipo' : 'Revisión de Modificación',
-                            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1F5C3D)),
-                            overflow: TextOverflow.ellipsis,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: 700,
+                  maxHeight: MediaQuery.of(context).size.height * 0.85,
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  tipoOperacion == 'creacion' ? 'Revisión de Nuevo Equipo' : 'Revisión de Modificación',
+                                  style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF1F5C3D)),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  'Tag: ${datosPropuestosOriginales['codigo'] ?? 'Sin asignar'}',
+                                  style: const TextStyle(fontSize: 14, color: Color(0xFF5F6368)),
+                                ),
+                              ],
+                            ),
                           ),
-                        ),
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            IconButton(
-                              icon: Icon(
-                                enModoEdicion ? Icons.visibility : Icons.edit_document, 
-                                color: const Color(0xFF1F5C3D),
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Tooltip(
+                                message: enModoEdicion ? 'Ver Vista Previa' : 'Editar Registro',
+                                child: IconButton(
+                                  icon: AnimatedSwitcher(
+                                    duration: const Duration(milliseconds: 300),
+                                    transitionBuilder: (child, anim) => RotationTransition(turns: child.key == const ValueKey('edit') ? Tween<double>(begin: 0.75, end: 1).animate(anim) : anim, child: FadeTransition(opacity: anim, child: child)),
+                                    child: Icon(
+                                      enModoEdicion ? Icons.visibility : Icons.edit_document, 
+                                      key: ValueKey(enModoEdicion ? 'view' : 'edit'),
+                                      color: const Color(0xFF1F5C3D),
+                                    ),
+                                  ),
+                                  splashRadius: 24,
+                                  onPressed: () => setStateDialog(() => enModoEdicion = !enModoEdicion),
+                                ),
                               ),
-                              tooltip: enModoEdicion ? 'Ver Vista Previa' : 'Editar Registro',
-                              onPressed: () => setStateDialog(() => enModoEdicion = !enModoEdicion),
-                            ),
-                            IconButton(
-                              icon: const Icon(Icons.close),
-                              onPressed: () => Navigator.pop(dialogContext),
-                              padding: EdgeInsets.zero,
-                              constraints: const BoxConstraints(),
-                            ),
-                          ],
-                        )
-                      ],
-                    ),
-                    const Divider(height: 24),
-                    Expanded(
-                      child: enModoEdicion 
-                        ? _buildVistaEdicion(context, datosEditados, config, setStateDialog)
-                        : (tipoOperacion == 'creacion'
-                            ? _buildVistaCreacion(datosEditados)
-                            : _buildVistaModificacion(idOriginal, datosEditados, futureOriginalDoc)),
-                    ),
-                    const Divider(height: 24),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        TextButton(
-                          onPressed: () => _rechazarSolicitud(idPendiente),
-                          style: TextButton.styleFrom(foregroundColor: const Color(0xFFDC362E)),
-                          child: const Text('Rechazar'),
+                              const SizedBox(width: 8),
+                              IconButton(
+                                icon: const Icon(Icons.close, color: Color(0xFF5F6368)),
+                                splashRadius: 24,
+                                onPressed: () => Navigator.pop(dialogContext),
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints(),
+                              ),
+                            ],
+                          )
+                        ],
+                      ),
+                      const Padding(padding: EdgeInsets.symmetric(vertical: 16), child: Divider(height: 1, color: Color(0xFFEBEBEB))),
+                      Expanded(
+                        child: AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 400),
+                          switchInCurve: Curves.easeOut,
+                          switchOutCurve: Curves.easeIn,
+                          child: enModoEdicion 
+                            ? _buildVistaEdicion(context, datosEditados, config, setStateDialog)
+                            : (tipoOperacion == 'creacion'
+                                ? _buildVistaCreacion(datosEditados)
+                                : _buildVistaModificacion(idOriginal, datosEditados, futureOriginalDoc)),
                         ),
-                        const SizedBox(width: 12),
-                        ElevatedButton(
-                          onPressed: () {
-                            bool fueModificado = false;
-                            for (var key in datosEditados.keys) {
-                              if (datosEditados[key] != datosPropuestosOriginales[key]) {
-                                fueModificado = true;
-                                break;
-                              }
-                            }
-
-                            if (fueModificado) {
-                              final adminRef = FirebaseAuth.instance.currentUser?.displayName ?? 
-                                               FirebaseAuth.instance.currentUser?.email?.split('@')[0] ?? 
-                                               'Admin';
-                              final originalRef = datosEditados['solicitado_por'] ?? 'Técnico';
-                              
-                              if (!originalRef.contains('Editado por')) {
-                                datosEditados['solicitado_por'] = '$originalRef / Editado por $adminRef';
-                              }
-                            }
-
-                            _aprobarSolicitud(idPendiente, datosEditados, tipoOperacion, idOriginal);
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF1F5C3D),
-                            foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                      ),
+                      const Padding(padding: EdgeInsets.symmetric(vertical: 16), child: Divider(height: 1, color: Color(0xFFEBEBEB))),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          TextButton(
+                            onPressed: () => _rechazarSolicitud(idPendiente),
+                            style: TextButton.styleFrom(
+                              foregroundColor: const Color(0xFFDC362E),
+                              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                            ),
+                            child: const Text('Devolver', style: TextStyle(fontWeight: FontWeight.w600)),
                           ),
-                          child: Text(enModoEdicion ? 'Aprobar Cambios' : 'Aprobar'),
-                        ),
-                      ],
-                    ),
-                  ],
+                          const SizedBox(width: 12),
+                          ElevatedButton.icon(
+                            icon: const Icon(Icons.check_circle_outline, size: 20),
+                            label: Text(enModoEdicion ? 'Aprobar Cambios' : 'Aprobar Solicitud', style: const TextStyle(fontWeight: FontWeight.w600)),
+                            onPressed: () {
+                              bool fueModificado = false;
+                              for (var key in datosEditados.keys) {
+                                if (datosEditados[key] != datosPropuestosOriginales[key]) {
+                                  fueModificado = true;
+                                  break;
+                                }
+                              }
+
+                              if (fueModificado) {
+                                final adminRef = FirebaseAuth.instance.currentUser?.displayName ?? FirebaseAuth.instance.currentUser?.email?.split('@')[0] ?? 'Admin';
+                                final originalRef = datosEditados['solicitado_por'] ?? 'Técnico';
+                                if (!originalRef.contains('Editado por')) {
+                                  datosEditados['solicitado_por'] = '$originalRef / Editado por $adminRef';
+                                }
+                              }
+                              _aprobarSolicitud(idPendiente, datosEditados, tipoOperacion, idOriginal);
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF1F5C3D),
+                              foregroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                              elevation: 0,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
               ),
             );
@@ -564,25 +616,66 @@ class _EquiposAprobarPageState extends State<EquiposAprobarPage> {
     return valor.toString();
   }
 
+  // WIDGET UI/UX: Breadcrumbs para textos extremadamente largos (Rutas de ISA)
+  Widget _buildPremiumPath(String path) {
+    if (path.isEmpty) return const Text('Vacío', style: TextStyle(color: Color(0xFF5F6368)));
+    final parts = path.split('/').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
+    
+    return Wrap(
+      spacing: 6,
+      runSpacing: 6,
+      children: parts.map((part) {
+        final isLast = part == parts.last;
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            color: isLast ? const Color(0xFF1F5C3D).withValues(alpha: 0.1) : const Color(0xFFF5F6F7),
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(color: isLast ? const Color(0xFF1F5C3D).withValues(alpha: 0.3) : const Color(0xFFEBEBEB)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                part,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: isLast ? FontWeight.w700 : FontWeight.w500,
+                  color: isLast ? const Color(0xFF1F5C3D) : const Color(0xFF5F6368),
+                ),
+              ),
+              if (!isLast) const Padding(padding: EdgeInsets.only(left: 6), child: Icon(Icons.arrow_forward_ios, size: 10, color: Color(0xFFD9D9D9))),
+            ],
+          ),
+        );
+      }).toList(),
+    );
+  }
+
   Widget _buildVistaEdicion(BuildContext context, Map<String, dynamic> datosEditados, ConfiguracionProvider config, StateSetter setStateDialog) {
     final entradasFiltradas = datosEditados.entries.where((e) {
       return !_ocultos.contains(e.key) && e.key != 'solicitado_por' && e.key != 'fechaVerificacion';
     }).toList();
 
     return SingleChildScrollView(
+      key: const ValueKey('edicion'),
       padding: const EdgeInsets.only(right: 8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Container(
-            margin: const EdgeInsets.only(bottom: 16),
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(color: const Color(0xFFFFF3E0), borderRadius: BorderRadius.circular(8)),
+            margin: const EdgeInsets.only(bottom: 24),
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFF3E0), 
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFFFB74D).withValues(alpha: 0.5)),
+            ),
             child: const Row(
               children: [
-                Icon(Icons.warning_amber_rounded, color: Color(0xFFE65100), size: 20),
-                SizedBox(width: 8),
-                Expanded(child: Text('Estás editando la propuesta directamente antes de aprobarla.', style: TextStyle(color: Color(0xFFE65100), fontSize: 13, fontWeight: FontWeight.w500))),
+                Icon(Icons.warning_amber_rounded, color: Color(0xFFE65100), size: 24),
+                SizedBox(width: 12),
+                Expanded(child: Text('Estás editando la propuesta directamente antes de aprobarla. Asegúrate de verificar los datos con el técnico en sitio si es necesario.', style: TextStyle(color: Color(0xFFE65100), fontSize: 13, height: 1.4))),
               ],
             ),
           ),
@@ -591,12 +684,22 @@ class _EquiposAprobarPageState extends State<EquiposAprobarPage> {
             final v = e.value;
             final etiqueta = _etiquetas[k] ?? k.toUpperCase();
 
+            final inputDecoration = InputDecoration(
+              labelText: etiqueta, 
+              alignLabelWithHint: true,
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFF1F5C3D), width: 1.5)),
+              filled: true,
+              fillColor: const Color(0xFFF9FAFB),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+            );
+
             if (v is Timestamp) {
               return Padding(
                 padding: const EdgeInsets.only(bottom: 16.0),
                 child: TextFormField(
                   initialValue: _formatearValor(v),
-                  decoration: InputDecoration(labelText: etiqueta, border: const OutlineInputBorder(), filled: true, fillColor: const Color(0xFFF9FAFB)),
+                  decoration: inputDecoration.copyWith(fillColor: const Color(0xFFF5F6F7)),
                   readOnly: true,
                 ),
               );
@@ -606,38 +709,26 @@ class _EquiposAprobarPageState extends State<EquiposAprobarPage> {
               String valorActual = v?.toString() ?? '';
               return Padding(
                 padding: const EdgeInsets.only(bottom: 16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    InkWell(
-                      onTap: () => _mostrarSelectorArea(context, config, datosEditados, setStateDialog),
-                      borderRadius: BorderRadius.circular(8),
-                      child: InputDecorator(
-                        decoration: InputDecoration(
-                          labelText: etiqueta,
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-                          filled: true,
-                          fillColor: Colors.white,
-                        ),
-                        child: Text(
+                child: InkWell(
+                  onTap: () => _mostrarSelectorArea(context, config, datosEditados, setStateDialog),
+                  borderRadius: BorderRadius.circular(12),
+                  child: InputDecorator(
+                    decoration: inputDecoration,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
                           valorActual.isNotEmpty ? valorActual.split(' / ').last : 'Toque para seleccionar...',
-                          style: TextStyle(
-                            color: valorActual.isNotEmpty ? const Color(0xFF1A1C1E) : const Color(0xFF5F6368),
-                            fontSize: 14,
+                          style: TextStyle(color: valorActual.isNotEmpty ? const Color(0xFF1A1C1E) : const Color(0xFF5F6368), fontSize: 15, fontWeight: valorActual.isNotEmpty ? FontWeight.w600 : FontWeight.normal),
+                        ),
+                        if (valorActual.isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 8.0),
+                            child: _buildPremiumPath(valorActual),
                           ),
-                        ),
-                      ),
+                      ],
                     ),
-                    if (valorActual.isNotEmpty)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 8.0, left: 4.0),
-                        child: Text(
-                          valorActual,
-                          style: const TextStyle(fontSize: 11, color: Color(0xFF5F6368), fontStyle: FontStyle.italic),
-                        ),
-                      ),
-                  ],
+                  ),
                 ),
               );
             }
@@ -659,14 +750,9 @@ class _EquiposAprobarPageState extends State<EquiposAprobarPage> {
                   isExpanded: true,
                   initialValue: valorActual.isNotEmpty ? valorActual : null,
                   menuMaxHeight: 300, 
-                  decoration: InputDecoration(
-                    labelText: etiqueta, 
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-                    filled: true,
-                    fillColor: Colors.white,
-                  ),
+                  decoration: inputDecoration,
                   dropdownColor: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
                   items: opciones.map((opt) => DropdownMenuItem(value: opt, child: Text(opt, overflow: TextOverflow.ellipsis))).toList(),
                   onChanged: (val) {
                     if (val != null) setStateDialog(() => datosEditados[k] = val);
@@ -679,11 +765,7 @@ class _EquiposAprobarPageState extends State<EquiposAprobarPage> {
               padding: const EdgeInsets.only(bottom: 16.0),
               child: TextFormField(
                 initialValue: v?.toString() ?? '',
-                decoration: InputDecoration(
-                  labelText: etiqueta, 
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14)
-                ),
+                decoration: inputDecoration,
                 onChanged: (val) => datosEditados[k] = val,
               ),
             );
@@ -699,6 +781,7 @@ class _EquiposAprobarPageState extends State<EquiposAprobarPage> {
     }).toList();
 
     return SingleChildScrollView(
+      key: const ValueKey('creacion'),
       padding: const EdgeInsets.only(right: 8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -706,26 +789,32 @@ class _EquiposAprobarPageState extends State<EquiposAprobarPage> {
           ...entradasFiltradas.map((e) {
             final etiqueta = _etiquetas[e.key] ?? e.key.toUpperCase();
             final valorFormateado = _formatearValor(e.value);
+            final esRutaLarga = e.key == 'areaProceso' || e.key == 'ubicacionTecnica';
 
             return Container(
-              margin: const EdgeInsets.only(bottom: 8),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              margin: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: const Color(0xFFF9FAFB),
-                borderRadius: BorderRadius.circular(8),
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: const Color(0xFFEBEBEB)),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(etiqueta, style: const TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF5F6368), fontSize: 12)),
-                  const SizedBox(height: 4),
-                  Text(valorFormateado, style: const TextStyle(color: Color(0xFF1A1C1E), fontSize: 14)),
+                  Text(etiqueta, style: const TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF5F6368), fontSize: 11, letterSpacing: 0.5)),
+                  const SizedBox(height: 8),
+                  esRutaLarga ? _buildPremiumPath(valorFormateado) : Text(valorFormateado, style: const TextStyle(color: Color(0xFF1A1C1E), fontSize: 15)),
                 ],
               ),
             );
           }),
-          const SizedBox(height: 16),
+          const SizedBox(height: 24),
+          if (datosPropuestos['fotoPlacaUrl'] != null || datosPropuestos['fotoPlacaAdicionalUrl'] != null || datosPropuestos['fotoGeneralUrl'] != null)
+            const Padding(
+              padding: EdgeInsets.only(bottom: 16),
+              child: Text('EVIDENCIA FOTOGRÁFICA', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Color(0xFF5F6368), letterSpacing: 1.0)),
+            ),
           if (datosPropuestos['fotoPlacaUrl'] != null) _VisorImagenDialogo(titulo: 'FOTO DE PLACA TÉCNICA', fileId: datosPropuestos['fotoPlacaUrl']),
           if (datosPropuestos['fotoPlacaAdicionalUrl'] != null) _VisorImagenDialogo(titulo: 'FOTO DE PLACA ADICIONAL', fileId: datosPropuestos['fotoPlacaAdicionalUrl']),
           if (datosPropuestos['fotoGeneralUrl'] != null) _VisorImagenDialogo(titulo: 'FOTO GENERAL', fileId: datosPropuestos['fotoGeneralUrl']),
@@ -740,13 +829,14 @@ class _EquiposAprobarPageState extends State<EquiposAprobarPage> {
     }
 
     return FutureBuilder<DocumentSnapshot>(
+      key: const ValueKey('modificacion'),
       future: futureOriginalDoc,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator(color: Color(0xFF1F5C3D)));
         }
         if (!snapshot.hasData || !snapshot.data!.exists) {
-          return const Center(child: Text('El equipo original ya no existe en la base de datos.'));
+          return const Center(child: Text('El equipo original ya no existe en la base de datos.', style: TextStyle(color: Color(0xFF5F6368))));
         }
 
         final datosOriginales = snapshot.data!.data() as Map<String, dynamic>;
@@ -763,7 +853,16 @@ class _EquiposAprobarPageState extends State<EquiposAprobarPage> {
         final bool cambioGeneral = datosPropuestos['fotoGeneralUrl'] != null && datosPropuestos['fotoGeneralUrl'] != datosOriginales['fotoGeneralUrl'];
 
         if (clavesModificadas.isEmpty && !cambioPlaca && !cambioPlacaAdic && !cambioGeneral) {
-          return const Center(child: Text('No hay cambios detectados con respecto al original.'));
+          return const Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.verified, color: Color(0xFF1F5C3D), size: 48),
+                SizedBox(height: 16),
+                Text('No hay cambios detectados con respecto al original.', style: TextStyle(color: Color(0xFF5F6368), fontSize: 15)),
+              ],
+            )
+          );
         }
 
         return SingleChildScrollView(
@@ -771,45 +870,84 @@ class _EquiposAprobarPageState extends State<EquiposAprobarPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              Container(
+                margin: const EdgeInsets.only(bottom: 24),
+                padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                decoration: BoxDecoration(color: const Color(0xFFF9FAFB), borderRadius: BorderRadius.circular(8)),
+                child: const Row(
+                  children: [
+                    Icon(Icons.compare_arrows, color: Color(0xFF5F6368), size: 20),
+                    SizedBox(width: 12),
+                    Text('Comparativa de modificaciones propuestas', style: TextStyle(color: Color(0xFF5F6368), fontWeight: FontWeight.w600)),
+                  ],
+                ),
+              ),
               ...clavesModificadas.map((k) {
                 final etiqueta = _etiquetas[k] ?? k.toUpperCase();
                 final valorOriginal = _formatearValor(datosOriginales[k]);
                 final valorNuevo = _formatearValor(datosPropuestos[k]);
+                
+                // UX: Detectar strings gigantescos para cambiar el diseño de la tarjeta (Responsive Diff)
+                final esMuyLargo = valorOriginal.length > 35 || valorNuevo.length > 35;
 
                 return Container(
-                  margin: const EdgeInsets.only(bottom: 12),
-                  padding: const EdgeInsets.all(12),
+                  margin: const EdgeInsets.only(bottom: 16),
                   decoration: BoxDecoration(
                     color: Colors.white,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: const Color(0xFFD9D9D9)),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFFEBEBEB)),
+                    boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 4, offset: const Offset(0, 2))],
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(etiqueta, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12, color: Color(0xFF5F6368))),
-                      const SizedBox(height: 8),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                              decoration: BoxDecoration(color: const Color(0xFFDC362E).withValues(alpha: 0.1), borderRadius: BorderRadius.circular(4)),
-                              child: Text(valorOriginal.isEmpty ? 'Vacío' : valorOriginal, style: const TextStyle(color: Color(0xFFDC362E), decoration: TextDecoration.lineThrough, fontSize: 13)),
-                            ),
-                          ),
-                          const Padding(
-                            padding: EdgeInsets.symmetric(horizontal: 8.0),
-                            child: Icon(Icons.arrow_forward, size: 16, color: Color(0xFF5F6368)),
-                          ),
-                          Expanded(
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                              decoration: BoxDecoration(color: const Color(0xFF1F5C3D).withValues(alpha: 0.1), borderRadius: BorderRadius.circular(4)),
-                              child: Text(valorNuevo.isEmpty ? 'Vacío' : valorNuevo, style: const TextStyle(color: Color(0xFF1F5C3D), fontWeight: FontWeight.w600, fontSize: 13)),
-                            ),
-                          ),
-                        ],
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                        decoration: const BoxDecoration(
+                          color: Color(0xFFF9FAFB),
+                          borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
+                        ),
+                        child: Text(etiqueta, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 11, color: Color(0xFF5F6368), letterSpacing: 0.5)),
+                      ),
+                      const Divider(height: 1, color: Color(0xFFEBEBEB)),
+                      Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: esMuyLargo 
+                            ? Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text('Valor Original', style: TextStyle(fontSize: 10, color: Color(0xFFDC362E), fontWeight: FontWeight.bold)),
+                                  const SizedBox(height: 4),
+                                  k.toLowerCase().contains('area') ? _buildPremiumPath(valorOriginal) : Text(valorOriginal.isEmpty ? 'Vacío' : valorOriginal, style: const TextStyle(color: Color(0xFFDC362E), decoration: TextDecoration.lineThrough, fontSize: 14)),
+                                  const Padding(padding: EdgeInsets.symmetric(vertical: 12), child: Icon(Icons.arrow_downward, size: 16, color: Color(0xFFD9D9D9))),
+                                  const Text('Nuevo Valor', style: TextStyle(fontSize: 10, color: Color(0xFF1F5C3D), fontWeight: FontWeight.bold)),
+                                  const SizedBox(height: 4),
+                                  k.toLowerCase().contains('area') ? _buildPremiumPath(valorNuevo) : Text(valorNuevo.isEmpty ? 'Vacío' : valorNuevo, style: const TextStyle(color: Color(0xFF1F5C3D), fontWeight: FontWeight.w600, fontSize: 15)),
+                                ],
+                              )
+                            : Row(
+                                children: [
+                                  Expanded(
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                      decoration: BoxDecoration(color: const Color(0xFFDC362E).withValues(alpha: 0.05), borderRadius: BorderRadius.circular(8), border: Border.all(color: const Color(0xFFDC362E).withValues(alpha: 0.1))),
+                                      child: Text(valorOriginal.isEmpty ? 'Vacío' : valorOriginal, style: const TextStyle(color: Color(0xFFDC362E), decoration: TextDecoration.lineThrough, fontSize: 14)),
+                                    ),
+                                  ),
+                                  const Padding(
+                                    padding: EdgeInsets.symmetric(horizontal: 12),
+                                    child: Icon(Icons.arrow_forward_rounded, size: 20, color: Color(0xFFD9D9D9)),
+                                  ),
+                                  Expanded(
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                      decoration: BoxDecoration(color: const Color(0xFF1F5C3D).withValues(alpha: 0.08), borderRadius: BorderRadius.circular(8), border: Border.all(color: const Color(0xFF1F5C3D).withValues(alpha: 0.2))),
+                                      child: Text(valorNuevo.isEmpty ? 'Vacío' : valorNuevo, style: const TextStyle(color: Color(0xFF1F5C3D), fontWeight: FontWeight.w600, fontSize: 14)),
+                                    ),
+                                  ),
+                                ],
+                              ),
                       ),
                     ],
                   ),
@@ -817,15 +955,15 @@ class _EquiposAprobarPageState extends State<EquiposAprobarPage> {
               }),
               if (cambioPlaca || cambioPlacaAdic || cambioGeneral)
                 Padding(
-                  padding: const EdgeInsets.only(top: 8.0, bottom: 16.0),
+                  padding: const EdgeInsets.only(top: 16.0, bottom: 24.0),
                   child: Row(
                     children: [
-                      const Expanded(child: Divider()),
+                      const Expanded(child: Divider(color: Color(0xFFEBEBEB))),
                       Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                        child: Text('EVIDENCIA GRÁFICA ACTUALIZADA', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: const Color(0xFF1F5C3D).withValues(alpha: 0.8))),
+                        padding: const EdgeInsets.symmetric(horizontal: 12.0),
+                        child: Text('EVIDENCIA GRÁFICA ACTUALIZADA', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: const Color(0xFF1F5C3D).withValues(alpha: 0.8), letterSpacing: 1.0)),
                       ),
-                      const Expanded(child: Divider()),
+                      const Expanded(child: Divider(color: Color(0xFFEBEBEB))),
                     ],
                   ),
                 ),
@@ -844,92 +982,136 @@ class _EquiposAprobarPageState extends State<EquiposAprobarPage> {
     return Scaffold(
       backgroundColor: const Color(0xFFF5F6F7),
       appBar: AppBar(
-        title: const Text('Equipos por Aprobar', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+        title: const Text('Equipos por Aprobar', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 18)),
         backgroundColor: const Color(0xFF1F5C3D),
         iconTheme: const IconThemeData(color: Colors.white),
         elevation: 0,
+        centerTitle: true,
       ),
-      body: StreamBuilder<QuerySnapshot>(
-        stream: (widget.rol == 'admin' || widget.rol == 'supervisor')
-            ? FirebaseFirestore.instance.collection('ediciones_pendientes')
-                .where('estado', isEqualTo: 'pendiente')
-                .orderBy('fecha_solicitud', descending: true)
-                .snapshots()
-            : FirebaseFirestore.instance.collection('ediciones_pendientes')
-                .where('solicitado_por', isEqualTo: FirebaseAuth.instance.currentUser?.email)
-                .where('estado', isEqualTo: 'pendiente')
-                .orderBy('fecha_solicitud', descending: true)
-                .snapshots(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator(color: Color(0xFF1F5C3D)));
-          }
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 800), // UX: Centrado perfecto en monitores anchos
+          child: StreamBuilder<QuerySnapshot>(
+            stream: (widget.rol == 'admin' || widget.rol == 'supervisor')
+                ? FirebaseFirestore.instance.collection('ediciones_pendientes')
+                    .where('estado', isEqualTo: 'pendiente')
+                    .orderBy('fecha_solicitud', descending: true)
+                    .snapshots()
+                : FirebaseFirestore.instance.collection('ediciones_pendientes')
+                    .where('solicitado_por', isEqualTo: FirebaseAuth.instance.currentUser?.email)
+                    .where('estado', isEqualTo: 'pendiente')
+                    .orderBy('fecha_solicitud', descending: true)
+                    .snapshots(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator(color: Color(0xFF1F5C3D)));
+              }
 
-          if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-            return const Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.check_circle_outline, size: 64, color: Color(0xFFD9D9D9)),
-                  SizedBox(height: 16),
-                  Text('No hay equipos pendientes de aprobación', style: TextStyle(fontSize: 16, color: Color(0xFF5F6368))),
-                ],
-              ),
-            );
-          }
-
-          return ListView.builder(
-            padding: const EdgeInsets.all(16),
-            itemCount: snapshot.data!.docs.length,
-            itemBuilder: (context, index) {
-              final doc = snapshot.data!.docs[index];
-              final data = doc.data() as Map<String, dynamic>;
-              final datosPropuestos = data['datos_propuestos'] as Map<String, dynamic>? ?? {};
-              
-              final esModificacion = data['tipo_operacion'] == 'modificacion';
-              final tag = datosPropuestos['codigo'] ?? 'Sin TAG';
-              final nombre = datosPropuestos['nombre'] ?? datosPropuestos['descripcion'] ?? 'Sin nombre';
-
-              return Card(
-                elevation: 0,
-                margin: const EdgeInsets.only(bottom: 12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  side: const BorderSide(color: Color(0xFFD9D9D9), width: 0.8),
-                ),
-                child: ListTile(
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  leading: CircleAvatar(
-                    backgroundColor: esModificacion ? const Color(0xFFF57F17).withValues(alpha: 0.1) : const Color(0xFF1F5C3D).withValues(alpha: 0.1),
-                    child: Icon(
-                      esModificacion ? Icons.edit : Icons.add_box,
-                      color: esModificacion ? const Color(0xFFF57F17) : const Color(0xFF1F5C3D),
-                    ),
-                  ),
-                  title: Text(tag, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                  subtitle: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+              if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                return const Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const SizedBox(height: 4),
-                      Text(nombre, maxLines: 1, overflow: TextOverflow.ellipsis),
-                      const SizedBox(height: 4),
-                      Text('Técnico: ${data['solicitado_por'] ?? 'Desconocido'}', style: const TextStyle(fontSize: 12, color: Color(0xFF5F6368))),
+                      Icon(Icons.task_alt_rounded, size: 72, color: Color(0xFFD9D9D9)),
+                      SizedBox(height: 16),
+                      Text('No hay equipos pendientes de aprobación', style: TextStyle(fontSize: 16, color: Color(0xFF5F6368), fontWeight: FontWeight.w500)),
                     ],
                   ),
-                  trailing: ElevatedButton(
-                    onPressed: () => _mostrarDialogoRevision(context, doc.id, data),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF1F5C3D),
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                );
+              }
+
+              return ListView.builder(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+                itemCount: snapshot.data!.docs.length,
+                itemBuilder: (context, index) {
+                  final doc = snapshot.data!.docs[index];
+                  final data = doc.data() as Map<String, dynamic>;
+                  final datosPropuestos = data['datos_propuestos'] as Map<String, dynamic>? ?? {};
+                  
+                  final esModificacion = data['tipo_operacion'] == 'modificacion';
+                  final tag = datosPropuestos['codigo'] ?? 'Sin TAG';
+                  final nombre = datosPropuestos['nombre'] ?? datosPropuestos['descripcion'] ?? 'Sin nombre';
+
+                  return Card(
+                    elevation: 0,
+                    margin: const EdgeInsets.only(bottom: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        side: BorderSide(color: const Color(0xFFEBEBEB), width: 1),
+                      ),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(16),
+                      onTap: () => _mostrarDialogoRevision(context, doc.id, data),
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: esModificacion ? const Color(0xFFF57F17).withValues(alpha: 0.1) : const Color(0xFF1F5C3D).withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Icon(
+                                esModificacion ? Icons.edit_note_rounded : Icons.add_box_rounded,
+                                color: esModificacion ? const Color(0xFFF57F17) : const Color(0xFF1F5C3D),
+                                size: 28,
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Expanded(
+                                        child: Text(tag, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF1A1C1E)), overflow: TextOverflow.ellipsis),
+                                      ),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFFF9FAFB),
+                                          borderRadius: BorderRadius.circular(6),
+                                          border: Border.all(color: const Color(0xFFEBEBEB))
+                                        ),
+                                        child: Text(
+                                          esModificacion ? 'MODIFICACIÓN' : 'CREACIÓN',
+                                          style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: esModificacion ? const Color(0xFFF57F17) : const Color(0xFF1F5C3D), letterSpacing: 0.5),
+                                        ),
+                                      )
+                                    ],
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Text(nombre, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 14, color: Color(0xFF5F6368))),
+                                  const SizedBox(height: 12),
+                                  Row(
+                                    children: [
+                                      const Icon(Icons.person_outline, size: 14, color: Color(0xFF5F6368)),
+                                      const SizedBox(width: 6),
+                                      Expanded(child: Text(data['solicitado_por'] ?? 'Desconocido', style: const TextStyle(fontSize: 12, color: Color(0xFF5F6368)), overflow: TextOverflow.ellipsis)),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            const Padding(
+                              padding: EdgeInsets.only(top: 8.0),
+                              child: Icon(Icons.chevron_right_rounded, color: Color(0xFFD9D9D9)),
+                            )
+                          ],
+                        ),
+                      ),
                     ),
-                    child: const Text('Revisar'),
-                  ),
-                ),
+                  );
+                },
               );
             },
-          );
-        },
+          ),
+        ),
       ),
     );
   }

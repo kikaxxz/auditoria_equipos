@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
 
 class ManualPage extends StatefulWidget {
-  const ManualPage({super.key});
+  final int? paginaInicial;
+
+  const ManualPage({super.key, this.paginaInicial});
 
   @override
   State<ManualPage> createState() => _ManualPageState();
@@ -29,14 +31,13 @@ class _ManualPageState extends State<ManualPage> {
                 ),
                 child: TextField(
                   controller: _searchController,
-                  enabled: !_isLoadingSearch, // Se deshabilita mientras busca
+                  enabled: !_isLoadingSearch,
                   style: const TextStyle(color: Colors.black),
                   decoration: InputDecoration(
                     hintText: _isLoadingSearch ? 'Buscando...' : 'Buscar en el manual...',
                     hintStyle: const TextStyle(color: Colors.grey),
                     border: InputBorder.none,
                     contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                    // Muestra el indicador de carga dentro de la barra de búsqueda
                     suffixIcon: _isLoadingSearch
                         ? const Padding(
                             padding: EdgeInsets.all(12.0),
@@ -58,13 +59,17 @@ class _ManualPageState extends State<ManualPage> {
                       _isLoadingSearch = true;
                     });
 
-                    _searchResult = await _pdfViewerController.searchText(text);
+                    await Future.delayed(const Duration(milliseconds: 50));
+
+                    _searchResult = _pdfViewerController.searchText(text);
+
+                    if (!context.mounted) return;
 
                     setState(() {
                       _isLoadingSearch = false;
                     });
 
-                    if (_searchResult.totalInstanceCount == 0 && mounted) {
+                    if (_searchResult.totalInstanceCount == 0) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(content: Text('No se encontraron coincidencias en el manual.')),
                       );
@@ -77,7 +82,6 @@ class _ManualPageState extends State<ManualPage> {
         iconTheme: const IconThemeData(color: Colors.white),
         centerTitle: !_isSearching,
         actions: [
-
           if (!_isLoadingSearch) ...[
             if (_searchResult.hasResult)
               IconButton(
@@ -116,6 +120,11 @@ class _ManualPageState extends State<ManualPage> {
         controller: _pdfViewerController,
         canShowScrollHead: false,
         canShowScrollStatus: true,
+        onDocumentLoaded: (PdfDocumentLoadedDetails details) {
+          if (widget.paginaInicial != null) {
+            _pdfViewerController.jumpToPage(widget.paginaInicial!);
+          }
+        },
       ),
     );
   }

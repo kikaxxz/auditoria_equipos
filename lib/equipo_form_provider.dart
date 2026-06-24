@@ -1,8 +1,6 @@
 import 'dart:convert';
 import 'dart:async';
-import 'dart:typed_data'; // Añadido para Uint8List
-import 'package:flutter/foundation.dart'; // Añadido para compute
-import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:hive/hive.dart';
 import 'package:uuid/uuid.dart';
@@ -66,7 +64,7 @@ class EquipoFormProvider extends ChangeNotifier {
   String _nombreAuditor = '';
   bool guardandoEnRed = false;
 
-  Timer? _debounceBorrador; // Variable añadida para controlar el lag de escritura
+  Timer? _debounceBorrador;
 
   final ImagePicker _picker = ImagePicker();
   final Box _borrador = Hive.box('borrador');
@@ -139,7 +137,6 @@ class EquipoFormProvider extends ChangeNotifier {
 
       if (photo != null) {
         final Uint8List bytes = await photo.readAsBytes();
-        
         final String base64String = await compute(codificarBase64EnIsolate, bytes);
 
         if (tipo == 'placa') {
@@ -157,7 +154,7 @@ class EquipoFormProvider extends ChangeNotifier {
         notifyListeners();
       }
     } catch (e) {
-      debugPrint('Error al capturar foto: $e');
+      debugPrint(e.toString());
     }
   }
 
@@ -174,6 +171,7 @@ class EquipoFormProvider extends ChangeNotifier {
     final datos = {
       'id_transaccion': idTransaccion,
       'id_levantamiento': idFinal,
+      'id_equipo_original': idLevantamientoTemporal,
       'es_edicion': esEdicion,
       'codigo': codigo,
       'codigo_minuscula': codigo.toLowerCase(),
@@ -226,8 +224,10 @@ class EquipoFormProvider extends ChangeNotifier {
   }
 
   void cargarLevantamientoExistente(String docId, Map<String, dynamic> datos) async {
-    idLevantamientoTemporal = docId;
+    bool esModificacion = datos['tipo_operacion'] == 'modificacion' || datos['es_edicion'] == true;
+    idLevantamientoTemporal = (esModificacion && docId.isNotEmpty) ? docId : null;
     idTransaccionExistente = datos['id_transaccion'];
+    
     codigo = datos['codigo'] ?? '';
     descripcion = datos['descripcion'] ?? '';
     nombre = datos['nombre'] ?? '';
@@ -300,7 +300,6 @@ class EquipoFormProvider extends ChangeNotifier {
     fotoPlacaAdicional = null;
     fotoGeneral = null;
 
-    // Procesamos las imágenes de caché en hilos secundarios
     if (fotoPlacaUrlExistente != null) {
       final bytesPlaca = await ImageCacheManager.obtenerImagen(fotoPlacaUrlExistente!);
       if (bytesPlaca != null) {

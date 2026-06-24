@@ -31,6 +31,7 @@ dependencies:
   flutter_svg: ^2.3.0
   flutter_secure_storage: ^10.3.1
   firebase_remote_config: ^6.5.2
+  flutter_markdown: ^0.7.3
   fl_chart: ^1.2.0
   file_picker: ^8.1.2
   excel_community: ^1.1.4
