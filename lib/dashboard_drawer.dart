@@ -6,7 +6,7 @@ import 'equipos_aprobar_page.dart';
 import 'mis_solicitudes_page.dart';
 import 'manual_page.dart';
 import 'admin_usuarios_page.dart';
-import 'Configuracion.dart';
+import 'configuracion.dart';
 import 'ai_assistant_modal.dart';
 
 class DashboardDrawer extends StatelessWidget {
@@ -209,7 +209,7 @@ class DashboardDrawer extends StatelessWidget {
                   text: 'Manual de Mantenimiento',
                   onTap: () {
                     Navigator.pop(context);
-                    Navigator.push(context, MaterialPageRoute(builder: (context) => const ManualPage()));
+                    Navigator.push(context, MaterialPageRoute(builder: (context) => const ManualRepositoryPage()));
                   },
                 ),
                 if (rol == 'admin')

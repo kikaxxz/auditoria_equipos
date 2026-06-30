@@ -52,7 +52,6 @@ flutter:
     - assets/images/google_logo.svg
     - assets/images/icono_tarjeta.png
     - assets/images/logo_app.png
-    - assets/manual_mantenimiento.pdf
 
 flutter_icons:
   android: true

@@ -12,6 +12,7 @@ class AiAssistantModal {
     bool cargandoRAG = false;
     String respuestaRAG = '';
     int? paginaReferenciaRAG;
+    String? fuenteReferenciaRAG;
 
     showModalBottomSheet(
       context: context,
@@ -108,6 +109,7 @@ class AiAssistantModal {
                                   setModalState(() {
                                     respuestaRAG = 'Fallo: Sin conexión de red.';
                                     paginaReferenciaRAG = null;
+                                    fuenteReferenciaRAG = null;
                                     cargandoRAG = false;
                                   });
                                   return;
@@ -116,6 +118,7 @@ class AiAssistantModal {
                                 setModalState(() {
                                   respuestaRAG = 'Excepción Connectivity: ${e.toString()}';
                                   paginaReferenciaRAG = null;
+                                  fuenteReferenciaRAG = null;
                                   cargandoRAG = false;
                                 });
                                 return;
@@ -125,6 +128,7 @@ class AiAssistantModal {
                                 cargandoRAG = true;
                                 respuestaRAG = '';
                                 paginaReferenciaRAG = null;
+                                fuenteReferenciaRAG = null;
                                 mensajeCarga = 'Analizando la consulta...';
                               });
 
@@ -150,6 +154,10 @@ class AiAssistantModal {
                                 setModalState(() {
                                   respuestaRAG = resultado['respuesta'];
                                   paginaReferenciaRAG = resultado['pagina'];
+                                  
+                                  List<dynamic> fuentes = resultado['fuentes'] ?? [];
+                                  fuenteReferenciaRAG = fuentes.isNotEmpty ? fuentes.first.toString() : null;
+                                  
                                   cargandoRAG = false;
                                 });
                               }).catchError((error, stackTrace) {
@@ -209,7 +217,7 @@ class AiAssistantModal {
                               ),
                             ),
                           ],
-                          if (paginaReferenciaRAG != null) ...[
+                          if (paginaReferenciaRAG != null || fuenteReferenciaRAG != null) ...[
                             const SizedBox(height: 16),
                             ElevatedButton.icon(
                               style: ElevatedButton.styleFrom(
@@ -224,15 +232,26 @@ class AiAssistantModal {
                               ),
                               icon: const Icon(Icons.picture_as_pdf_rounded),
                               label: Text(
-                                'Ver página $paginaReferenciaRAG en el Manual',
+                                paginaReferenciaRAG != null 
+                                    ? 'Ver página $paginaReferenciaRAG en el Manual'
+                                    : 'Ver Manual de Referencia',
                                 style: const TextStyle(fontWeight: FontWeight.bold),
                               ),
                               onPressed: () {
                                 Navigator.pop(builderContext);
+                                
+                                String tituloPdf = fuenteReferenciaRAG?.replaceAll('.pdf', '') ?? 'Manual Técnico';
+                                String nombreArchivo = fuenteReferenciaRAG ?? 'IM-AYC-TRA-001.pdf';
+                                String rutaPdf = 'https://auditoria-equipos-pwa.web.app/manuales/$nombreArchivo';
+
                                 Navigator.push(
                                   builderContext,
                                   MaterialPageRoute(
-                                    builder: (context) => ManualPage(paginaInicial: paginaReferenciaRAG),
+                                    builder: (context) => ManualViewerPage(
+                                      titulo: tituloPdf,
+                                      rutaPdf: rutaPdf,
+                                      paginaInicial: paginaReferenciaRAG,
+                                    ),
                                   ),
                                 );
                               },

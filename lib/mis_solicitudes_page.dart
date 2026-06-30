@@ -63,7 +63,8 @@ class _MisSolicitudesPageState extends State<MisSolicitudesPage> {
     'id_levantamiento', 'id_transaccion', 'uid_creador', 'email_creador', 'email_original',
     'nombre_creador', 'fotoPlacaUrl', 'fotoPlacaAdicionalUrl', 'fotoGeneralUrl',
     'urls_subidas_temporalmente', 'sincronizadoEn', 'ultimaModificacion', 'codigo_minuscula',
-    'fotoPlacaUrlAntigua', 'fotoPlacaAdicionalUrlAntigua', 'fotoGeneralUrlAntigua', 'es_edicion'
+    'fotoPlacaUrlAntigua', 'fotoPlacaAdicionalUrlAntigua', 'fotoGeneralUrlAntigua', 'es_edicion',
+    'camposDinamicos'
   ];
 
   String _formatearValor(dynamic valor) {
@@ -294,6 +295,10 @@ class _MisSolicitudesPageState extends State<MisSolicitudesPage> {
              !e.key.toLowerCase().contains('base64');
     }).toList();
 
+    final Map<String, dynamic> camposDinamicos = datosPropuestos['camposDinamicos'] != null 
+        ? Map<String, dynamic>.from(datosPropuestos['camposDinamicos']) 
+        : {};
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -361,6 +366,39 @@ class _MisSolicitudesPageState extends State<MisSolicitudesPage> {
                       ),
                     );
                   }),
+                  
+                  if (camposDinamicos.isNotEmpty) ...[
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 16.0),
+                      child: Text('CAMPOS PERSONALIZADOS', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Color(0xFF5F6368), letterSpacing: 1.0)),
+                    ),
+                    ...camposDinamicos.entries.map((e) {
+                      return Container(
+                        margin: const EdgeInsets.only(bottom: 12),
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF9FAFB),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: const Color(0xFFE0E2E5)),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              e.key.toUpperCase(), 
+                              style: const TextStyle(fontWeight: FontWeight.w700, color: Color(0xFF5F6368), fontSize: 11, letterSpacing: 0.5)
+                            ),
+                            const SizedBox(height: 6),
+                            SelectableText(
+                              e.value.toString(), 
+                              style: const TextStyle(color: Color(0xFF1A1C1E), fontSize: 15, fontWeight: FontWeight.w500)
+                            ),
+                          ],
+                        ),
+                      );
+                    }),
+                  ],
+
                   const SizedBox(height: 24),
                   if (datosPropuestos['fotoPlacaUrl'] != null) 
                     _VisorImagenDialogo(titulo: 'FOTO DE PLACA TÉCNICA', fileId: datosPropuestos['fotoPlacaUrl']),

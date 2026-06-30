@@ -38,6 +38,7 @@ class GeneradorExcel {
           'email_creador': data['email_creador']?.toString() ?? '',
           'sincronizadoEn': data['sincronizadoEn'] != null ? (data['sincronizadoEn'] as Timestamp).toDate().toIso8601String() : null,
           'ultimaModificacion': data['ultimaModificacion'] != null ? (data['ultimaModificacion'] as Timestamp).toDate().toIso8601String() : null,
+          'camposDinamicos': data['camposDinamicos'] ?? {}, // NUEVO: Extracción de campos dinámicos
         };
       }).toList();
 
@@ -80,6 +81,21 @@ List<int> _procesarExcelAislado(List<Map<String, dynamic>> datos) {
   final sheet = workbook.worksheets[0];
   sheet.name = 'Equipos Auditados';
 
+  // 1. Escanear todas las filas para encontrar TODAS las llaves dinámicas únicas
+  Set<String> llavesDinamicasSet = {};
+  for (var data in datos) {
+    if (data['camposDinamicos'] != null && data['camposDinamicos'] is Map) {
+      final Map<dynamic, dynamic> campos = data['camposDinamicos'];
+      for (var key in campos.keys) {
+        llavesDinamicasSet.add(key.toString());
+      }
+    }
+  }
+  
+  // Convertimos a lista y ordenamos alfabéticamente para mantener consistencia visual
+  List<String> columnasDinamicas = llavesDinamicasSet.toList()..sort();
+
+  // 2. Definir cabeceras estáticas
   final headers = [
     'Código (Tag)', 'Nombre del Equipo', 'Equipo Padre', 'Familia', 'Área de Proceso', 'Ubicación Técnica',
     'Marca', 'Modelo', 'No. Serie', 'Variable Medida', 'Señal E/S',
@@ -87,6 +103,10 @@ List<int> _procesarExcelAislado(List<Map<String, dynamic>> datos) {
     'Última Modificación'
   ];
 
+  // Añadimos las cabeceras dinámicas al final de la tabla
+  headers.addAll(columnasDinamicas);
+
+  // 3. Pintar cabeceras y autoajustar
   for (int i = 0; i < headers.length; i++) {
     final cell = sheet.getRangeByIndex(1, i + 1);
     cell.setText(headers[i]);
@@ -96,6 +116,7 @@ List<int> _procesarExcelAislado(List<Map<String, dynamic>> datos) {
     sheet.autoFitColumn(i + 1);
   }
 
+  // 4. Rellenar los datos
   for (int r = 0; r < datos.length; r++) {
     final data = datos[r];
     final row = r + 2;
@@ -129,6 +150,16 @@ List<int> _procesarExcelAislado(List<Map<String, dynamic>> datos) {
       sheet.getRangeByIndex(row, 18).setText('${dateMod.day.toString().padLeft(2, '0')}/${dateMod.month.toString().padLeft(2, '0')}/${dateMod.year} ${dateMod.hour.toString().padLeft(2, '0')}:${dateMod.minute.toString().padLeft(2, '0')}');
     } else {
       sheet.getRangeByIndex(row, 18).setText('Sin modificaciones');
+    }
+
+    // NUEVO: Rellenar celdas dinámicas iterando por el superconjunto de columnas
+    final Map<dynamic, dynamic> camposEquipo = (data['camposDinamicos'] is Map) ? data['camposDinamicos'] : {};
+    int colIndex = 19;
+    
+    for (String llave in columnasDinamicas) {
+      String valor = camposEquipo.containsKey(llave) ? camposEquipo[llave].toString() : 'N/A';
+      sheet.getRangeByIndex(row, colIndex).setText(valor);
+      colIndex++;
     }
   }
 

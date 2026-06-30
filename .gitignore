@@ -11,6 +11,7 @@
 .svn/
 .swiftpm/
 migrate_working_dir/
+subir_manuales.py
 
 # IntelliJ related
 *.iml
@@ -44,3 +45,5 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 .firebase/
+/assets/
+/web/manuales

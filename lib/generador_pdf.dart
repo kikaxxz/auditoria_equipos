@@ -54,6 +54,7 @@ class GeneradorPdf {
         'email_original': datos['email_original']?.toString() ?? '',
         'sincronizadoEn': datos['sincronizadoEn'] != null ? (datos['sincronizadoEn'] as Timestamp).toDate().toIso8601String() : null,
         'ultimaModificacion': datos['ultimaModificacion'] != null ? (datos['ultimaModificacion'] as Timestamp).toDate().toIso8601String() : null,
+        'camposDinamicos': datos['camposDinamicos'] ?? {}, // NUEVO: Extracción de campos
         'logoBytes': logoBytes,
         'bytesPlaca': bytesPlaca,
         'bytesPlacaAdicional': bytesPlacaAdicional,
@@ -226,6 +227,16 @@ Future<Uint8List> _procesarPdfAislado(Map<String, dynamic> datos) async {
     );
   }
 
+  // NUEVO: Procesar filas dinámicas si existen
+  final Map<String, dynamic> mapCampos = (datos['camposDinamicos'] is Map) ? Map<String, dynamic>.from(datos['camposDinamicos']) : {};
+  List<pw.Widget> filasCamposPersonalizados = [];
+  
+  if (mapCampos.isNotEmpty) {
+    mapCampos.forEach((key, value) {
+      filasCamposPersonalizados.add(construirFila(key.toUpperCase(), value.toString()));
+    });
+  }
+
   pdf.addPage(
     pw.MultiPage(
       pageFormat: PdfPageFormat.a4,
@@ -321,6 +332,10 @@ Future<Uint8List> _procesarPdfAislado(Map<String, dynamic> datos) async {
             construirFila('Señal E/S', datos['senalEntradaSalida']),
             construirFila('Rango', '${datos['rangoLrv']} ${datos['rangoUrv']} ${datos['unidadIngenieria']}'),
           ]),
+          
+          if (filasCamposPersonalizados.isNotEmpty)
+            construirSeccion('Campos Personalizados', filasCamposPersonalizados),
+            
           construirSeccion('Auditoría', filasAuditoria),
           
           if (imgPlaca != null)

@@ -175,7 +175,6 @@ class EquiposAprobarPage extends StatefulWidget {
 }
 
 class _EquiposAprobarPageState extends State<EquiposAprobarPage> {
-  // Lógica de Sincronización inalterada
   Future<void> _aprobarSolicitud(String idPendiente, Map<String, dynamic> datosPropuestos, String tipoOperacion, String? idOriginal) async {
     try {
       final List<String> urlsAEliminar = [];
@@ -550,7 +549,7 @@ class _EquiposAprobarPageState extends State<EquiposAprobarPage> {
                             onPressed: () {
                               bool fueModificado = false;
                               for (var key in datosEditados.keys) {
-                                if (datosEditados[key] != datosPropuestosOriginales[key]) {
+                                if (datosEditados[key].toString() != datosPropuestosOriginales[key].toString()) {
                                   fueModificado = true;
                                   break;
                                 }
@@ -598,9 +597,10 @@ class _EquiposAprobarPageState extends State<EquiposAprobarPage> {
 
   final List<String> _ocultos = [
     'id_levantamiento', 'id_transaccion', 'uid_creador', 'email_creador', 'email_original',
-    'nombre_creador', 'fotoPlacaUrl', 'fotoPlacaAdicionalUrl', 'fotoGeneralUrl',
+    'nombre_creador', 'fotoPlacaUrl', 'fotoPlacaAdicionalUrl', 'fotoGeneralUrl', 'camposDinamicos',
     'urls_subidas_temporalmente', 'sincronizadoEn', 'ultimaModificacion', 'codigo_minuscula',
-    'fotoPlacaUrlAntigua', 'fotoPlacaAdicionalUrlAntigua', 'fotoGeneralUrlAntigua'
+    'fotoPlacaUrlAntigua', 'fotoPlacaAdicionalUrlAntigua', 'fotoGeneralUrlAntigua',
+    'id_equipo_original', 'es_edicion'
   ];
 
   String _formatearValor(dynamic valor) {
@@ -616,7 +616,6 @@ class _EquiposAprobarPageState extends State<EquiposAprobarPage> {
     return valor.toString();
   }
 
-  // WIDGET UI/UX: Breadcrumbs para textos extremadamente largos (Rutas de ISA)
   Widget _buildPremiumPath(String path) {
     if (path.isEmpty) return const Text('Vacío', style: TextStyle(color: Color(0xFF5F6368)));
     final parts = path.split('/').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
@@ -652,10 +651,83 @@ class _EquiposAprobarPageState extends State<EquiposAprobarPage> {
     );
   }
 
+  Widget _construirTarjetaDiff(String clave, String etiqueta, String valorOriginal, String valorNuevo) {
+    final esMuyLargo = valorOriginal.length > 35 || valorNuevo.length > 35;
+    final esArea = clave.toLowerCase().contains('area');
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFEBEBEB)),
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 4, offset: const Offset(0, 2))],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            decoration: const BoxDecoration(
+              color: Color(0xFFF9FAFB),
+              borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
+            ),
+            child: Text(etiqueta, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 11, color: Color(0xFF5F6368), letterSpacing: 0.5)),
+          ),
+          const Divider(height: 1, color: Color(0xFFEBEBEB)),
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: esMuyLargo 
+                ? Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('Valor Original', style: TextStyle(fontSize: 10, color: Color(0xFFDC362E), fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 4),
+                      esArea ? _buildPremiumPath(valorOriginal) : Text(valorOriginal.isEmpty ? 'Vacío' : valorOriginal, style: const TextStyle(color: Color(0xFFDC362E), decoration: TextDecoration.lineThrough, fontSize: 14)),
+                      const Padding(padding: EdgeInsets.symmetric(vertical: 12), child: Icon(Icons.arrow_downward, size: 16, color: Color(0xFFD9D9D9))),
+                      const Text('Nuevo Valor', style: TextStyle(fontSize: 10, color: Color(0xFF1F5C3D), fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 4),
+                      esArea ? _buildPremiumPath(valorNuevo) : Text(valorNuevo.isEmpty ? 'Vacío' : valorNuevo, style: const TextStyle(color: Color(0xFF1F5C3D), fontWeight: FontWeight.w600, fontSize: 15)),
+                    ],
+                  )
+                : Row(
+                    children: [
+                      Expanded(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                          decoration: BoxDecoration(color: const Color(0xFFDC362E).withValues(alpha: 0.05), borderRadius: BorderRadius.circular(8), border: Border.all(color: const Color(0xFFDC362E).withValues(alpha: 0.1))),
+                          child: Text(valorOriginal.isEmpty ? 'Vacío' : valorOriginal, style: const TextStyle(color: Color(0xFFDC362E), decoration: TextDecoration.lineThrough, fontSize: 14)),
+                        ),
+                      ),
+                      const Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 12),
+                        child: Icon(Icons.arrow_forward_rounded, size: 20, color: Color(0xFFD9D9D9)),
+                      ),
+                      Expanded(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                          decoration: BoxDecoration(color: const Color(0xFF1F5C3D).withValues(alpha: 0.08), borderRadius: BorderRadius.circular(8), border: Border.all(color: const Color(0xFF1F5C3D).withValues(alpha: 0.2))),
+                          child: Text(valorNuevo.isEmpty ? 'Vacío' : valorNuevo, style: const TextStyle(color: Color(0xFF1F5C3D), fontWeight: FontWeight.w600, fontSize: 14)),
+                        ),
+                      ),
+                    ],
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildVistaEdicion(BuildContext context, Map<String, dynamic> datosEditados, ConfiguracionProvider config, StateSetter setStateDialog) {
     final entradasFiltradas = datosEditados.entries.where((e) {
       return !_ocultos.contains(e.key) && e.key != 'solicitado_por' && e.key != 'fechaVerificacion';
     }).toList();
+
+    final Map<String, dynamic> camposDinamicos = datosEditados['camposDinamicos'] != null 
+        ? Map<String, dynamic>.from(datosEditados['camposDinamicos']) 
+        : {};
+    datosEditados['camposDinamicos'] = camposDinamicos;
 
     return SingleChildScrollView(
       key: const ValueKey('edicion'),
@@ -770,6 +842,35 @@ class _EquiposAprobarPageState extends State<EquiposAprobarPage> {
               ),
             );
           }),
+          
+          if (camposDinamicos.isNotEmpty) ...[
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 16.0),
+              child: Text('CAMPOS PERSONALIZADOS', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Color(0xFF5F6368), letterSpacing: 1.0)),
+            ),
+            ...camposDinamicos.entries.map((e) {
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 16.0),
+                child: TextFormField(
+                  initialValue: e.value.toString(),
+                  decoration: InputDecoration(
+                    labelText: e.key,
+                    alignLabelWithHint: true,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                    focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFF1F5C3D), width: 1.5)),
+                    filled: true,
+                    fillColor: const Color(0xFFF9FAFB),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                  ),
+                  onChanged: (val) {
+                    setStateDialog(() {
+                      camposDinamicos[e.key] = val;
+                    });
+                  },
+                ),
+              );
+            }),
+          ]
         ],
       ),
     );
@@ -779,6 +880,10 @@ class _EquiposAprobarPageState extends State<EquiposAprobarPage> {
     final entradasFiltradas = datosPropuestos.entries.where((e) {
       return !_ocultos.contains(e.key) && e.value != null && e.value.toString().trim().isNotEmpty;
     }).toList();
+
+    final Map<String, dynamic> camposDinamicos = datosPropuestos['camposDinamicos'] != null 
+        ? Map<String, dynamic>.from(datosPropuestos['camposDinamicos']) 
+        : {};
 
     return SingleChildScrollView(
       key: const ValueKey('creacion'),
@@ -809,6 +914,33 @@ class _EquiposAprobarPageState extends State<EquiposAprobarPage> {
               ),
             );
           }),
+          
+          if (camposDinamicos.isNotEmpty) ...[
+            const Padding(
+              padding: EdgeInsets.only(top: 8, bottom: 16),
+              child: Text('CAMPOS PERSONALIZADOS', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Color(0xFF5F6368), letterSpacing: 1.0)),
+            ),
+            ...camposDinamicos.entries.map((e) {
+              return Container(
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFEBEBEB)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(e.key.toUpperCase(), style: const TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF5F6368), fontSize: 11, letterSpacing: 0.5)),
+                    const SizedBox(height: 8),
+                    Text(_formatearValor(e.value), style: const TextStyle(color: Color(0xFF1A1C1E), fontSize: 15)),
+                  ],
+                ),
+              );
+            }),
+          ],
+
           const SizedBox(height: 24),
           if (datosPropuestos['fotoPlacaUrl'] != null || datosPropuestos['fotoPlacaAdicionalUrl'] != null || datosPropuestos['fotoGeneralUrl'] != null)
             const Padding(
@@ -848,11 +980,19 @@ class _EquiposAprobarPageState extends State<EquiposAprobarPage> {
           return valorPropuesto != valorOriginal && (valorPropuesto.isNotEmpty || valorOriginal.isNotEmpty);
         }).toList();
 
+        final Map<String, dynamic> dinOriginales = datosOriginales['camposDinamicos'] != null ? Map<String, dynamic>.from(datosOriginales['camposDinamicos']) : {};
+        final Map<String, dynamic> dinPropuestos = datosPropuestos['camposDinamicos'] != null ? Map<String, dynamic>.from(datosPropuestos['camposDinamicos']) : {};
+        
+        final Set<String> todasLasClavesDin = {...dinOriginales.keys, ...dinPropuestos.keys};
+        final List<String> clavesDinModificadas = todasLasClavesDin.where((k) {
+          return _formatearValor(dinOriginales[k]) != _formatearValor(dinPropuestos[k]);
+        }).toList();
+
         final bool cambioPlaca = datosPropuestos['fotoPlacaUrl'] != null && datosPropuestos['fotoPlacaUrl'] != datosOriginales['fotoPlacaUrl'];
         final bool cambioPlacaAdic = datosPropuestos['fotoPlacaAdicionalUrl'] != null && datosPropuestos['fotoPlacaAdicionalUrl'] != datosOriginales['fotoPlacaAdicionalUrl'];
         final bool cambioGeneral = datosPropuestos['fotoGeneralUrl'] != null && datosPropuestos['fotoGeneralUrl'] != datosOriginales['fotoGeneralUrl'];
 
-        if (clavesModificadas.isEmpty && !cambioPlaca && !cambioPlacaAdic && !cambioGeneral) {
+        if (clavesModificadas.isEmpty && clavesDinModificadas.isEmpty && !cambioPlaca && !cambioPlacaAdic && !cambioGeneral) {
           return const Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -886,73 +1026,21 @@ class _EquiposAprobarPageState extends State<EquiposAprobarPage> {
                 final etiqueta = _etiquetas[k] ?? k.toUpperCase();
                 final valorOriginal = _formatearValor(datosOriginales[k]);
                 final valorNuevo = _formatearValor(datosPropuestos[k]);
-                
-                // UX: Detectar strings gigantescos para cambiar el diseño de la tarjeta (Responsive Diff)
-                final esMuyLargo = valorOriginal.length > 35 || valorNuevo.length > 35;
-
-                return Container(
-                  margin: const EdgeInsets.only(bottom: 16),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: const Color(0xFFEBEBEB)),
-                    boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 4, offset: const Offset(0, 2))],
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                        decoration: const BoxDecoration(
-                          color: Color(0xFFF9FAFB),
-                          borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
-                        ),
-                        child: Text(etiqueta, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 11, color: Color(0xFF5F6368), letterSpacing: 0.5)),
-                      ),
-                      const Divider(height: 1, color: Color(0xFFEBEBEB)),
-                      Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: esMuyLargo 
-                            ? Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Text('Valor Original', style: TextStyle(fontSize: 10, color: Color(0xFFDC362E), fontWeight: FontWeight.bold)),
-                                  const SizedBox(height: 4),
-                                  k.toLowerCase().contains('area') ? _buildPremiumPath(valorOriginal) : Text(valorOriginal.isEmpty ? 'Vacío' : valorOriginal, style: const TextStyle(color: Color(0xFFDC362E), decoration: TextDecoration.lineThrough, fontSize: 14)),
-                                  const Padding(padding: EdgeInsets.symmetric(vertical: 12), child: Icon(Icons.arrow_downward, size: 16, color: Color(0xFFD9D9D9))),
-                                  const Text('Nuevo Valor', style: TextStyle(fontSize: 10, color: Color(0xFF1F5C3D), fontWeight: FontWeight.bold)),
-                                  const SizedBox(height: 4),
-                                  k.toLowerCase().contains('area') ? _buildPremiumPath(valorNuevo) : Text(valorNuevo.isEmpty ? 'Vacío' : valorNuevo, style: const TextStyle(color: Color(0xFF1F5C3D), fontWeight: FontWeight.w600, fontSize: 15)),
-                                ],
-                              )
-                            : Row(
-                                children: [
-                                  Expanded(
-                                    child: Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                                      decoration: BoxDecoration(color: const Color(0xFFDC362E).withValues(alpha: 0.05), borderRadius: BorderRadius.circular(8), border: Border.all(color: const Color(0xFFDC362E).withValues(alpha: 0.1))),
-                                      child: Text(valorOriginal.isEmpty ? 'Vacío' : valorOriginal, style: const TextStyle(color: Color(0xFFDC362E), decoration: TextDecoration.lineThrough, fontSize: 14)),
-                                    ),
-                                  ),
-                                  const Padding(
-                                    padding: EdgeInsets.symmetric(horizontal: 12),
-                                    child: Icon(Icons.arrow_forward_rounded, size: 20, color: Color(0xFFD9D9D9)),
-                                  ),
-                                  Expanded(
-                                    child: Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                                      decoration: BoxDecoration(color: const Color(0xFF1F5C3D).withValues(alpha: 0.08), borderRadius: BorderRadius.circular(8), border: Border.all(color: const Color(0xFF1F5C3D).withValues(alpha: 0.2))),
-                                      child: Text(valorNuevo.isEmpty ? 'Vacío' : valorNuevo, style: const TextStyle(color: Color(0xFF1F5C3D), fontWeight: FontWeight.w600, fontSize: 14)),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                      ),
-                    ],
-                  ),
-                );
+                return _construirTarjetaDiff(k, etiqueta, valorOriginal, valorNuevo);
               }),
+              
+              if (clavesDinModificadas.isNotEmpty) ...[
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 16.0),
+                  child: Text('CAMPOS PERSONALIZADOS (MODIFICADOS)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Color(0xFF5F6368), letterSpacing: 1.0)),
+                ),
+                ...clavesDinModificadas.map((k) {
+                  final valorOriginal = _formatearValor(dinOriginales[k]);
+                  final valorNuevo = _formatearValor(dinPropuestos[k]);
+                  return _construirTarjetaDiff(k, k.toUpperCase(), valorOriginal, valorNuevo);
+                }),
+              ],
+
               if (cambioPlaca || cambioPlacaAdic || cambioGeneral)
                 Padding(
                   padding: const EdgeInsets.only(top: 16.0, bottom: 24.0),
@@ -990,7 +1078,7 @@ class _EquiposAprobarPageState extends State<EquiposAprobarPage> {
       ),
       body: Center(
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 800), // UX: Centrado perfecto en monitores anchos
+          constraints: const BoxConstraints(maxWidth: 800),
           child: StreamBuilder<QuerySnapshot>(
             stream: (widget.rol == 'admin' || widget.rol == 'supervisor')
                 ? FirebaseFirestore.instance.collection('ediciones_pendientes')
@@ -1037,7 +1125,7 @@ class _EquiposAprobarPageState extends State<EquiposAprobarPage> {
                     margin: const EdgeInsets.only(bottom: 16),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(16),
-                        side: BorderSide(color: const Color(0xFFEBEBEB), width: 1),
+                        side: const BorderSide(color: Color(0xFFEBEBEB), width: 1),
                       ),
                     child: InkWell(
                       borderRadius: BorderRadius.circular(16),

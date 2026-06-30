@@ -346,6 +346,67 @@ class _FormularioEquipoPageState extends State<FormularioEquipoPage> {
     );
   }
 
+  // NUEVO: Método para el diálogo de creación de campos dinámicos
+  void _mostrarDialogoNuevoCampo(BuildContext context) {
+    final nombreController = TextEditingController();
+    final valorController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Row(
+            children: [
+              Icon(Icons.label_important_rounded, color: _isaPrimary),
+              SizedBox(width: 8),
+              Text('Añadir Campo', style: TextStyle(color: _isaPrimary, fontWeight: FontWeight.bold, fontSize: 18)),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: nombreController,
+                textCapitalization: TextCapitalization.sentences,
+                decoration: _buildInputDeco('Nombre (ej. Presión Max)', Icons.title_rounded),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: valorController,
+                decoration: _buildInputDeco('Valor (ej. 150 PSI)', Icons.edit_note_rounded),
+              ),
+            ],
+          ),
+          actionsPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('CANCELAR', style: TextStyle(color: _isaTextSecondary, fontWeight: FontWeight.bold)),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _isaPrimary,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                elevation: 0,
+              ),
+              onPressed: () {
+                if (nombreController.text.isNotEmpty) {
+                  context.read<EquipoFormProvider>().agregarCampoDinamico(
+                    nombreController.text, 
+                    valorController.text
+                  );
+                  Navigator.pop(ctx);
+                }
+              },
+              child: const Text('GUARDAR', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            ),
+          ],
+        );
+      }
+    );
+  }
+
   BoxDecoration _stepContentDecoration() {
     return BoxDecoration(
       color: _isaSurface,
@@ -791,6 +852,78 @@ class _FormularioEquipoPageState extends State<FormularioEquipoPage> {
                                       );
                                     }
                                     return const SizedBox.shrink();
+                                  }
+                                ),
+                                
+                                // NUEVO: Sección de Campos Personalizados
+                                const SizedBox(height: 32),
+                                const Divider(color: _isaDivider, height: 1),
+                                const SizedBox(height: 24),
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    const Text(
+                                      'Campos Personalizados', 
+                                      style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16, color: _isaTextPrimary)
+                                    ),
+                                    TextButton.icon(
+                                      onPressed: () => _mostrarDialogoNuevoCampo(context),
+                                      icon: const Icon(Icons.add_circle_outline_rounded, color: _isaPrimary),
+                                      label: const Text('AÑADIR', style: TextStyle(color: _isaPrimary, fontWeight: FontWeight.bold)),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 12),
+                                Selector<EquipoFormProvider, Map<String, String>>(
+                                  selector: (_, p) => p.camposDinamicos,
+                                  builder: (context, campos, child) {
+                                    if (campos.isEmpty) {
+                                      return Container(
+                                        width: double.infinity,
+                                        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFFF9FAFB),
+                                          borderRadius: BorderRadius.circular(12),
+                                          border: Border.all(color: _isaDivider, style: BorderStyle.solid),
+                                        ),
+                                        child: const Text(
+                                          'Sin campos adicionales. Añada detalles extras relevantes del equipo aquí.', 
+                                          style: TextStyle(color: _isaTextSecondary, fontStyle: FontStyle.italic, fontSize: 13),
+                                          textAlign: TextAlign.center,
+                                        ),
+                                      );
+                                    }
+                                    return Column(
+                                      children: campos.entries.map((e) {
+                                        return Padding(
+                                          padding: const EdgeInsets.only(bottom: 12.0),
+                                          child: Row(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              Expanded(
+                                                child: TextFormField(
+                                                  initialValue: e.value,
+                                                  decoration: _buildInputDeco(e.key, Icons.label_important_outline_rounded),
+                                                  onChanged: (val) => context.read<EquipoFormProvider>().actualizarCampoDinamico(e.key, val),
+                                                ),
+                                              ),
+                                              const SizedBox(width: 8),
+                                              Container(
+                                                decoration: BoxDecoration(
+                                                  color: const Color(0xFFDC362E).withValues(alpha: 0.1),
+                                                  borderRadius: BorderRadius.circular(12),
+                                                ),
+                                                child: IconButton(
+                                                  icon: const Icon(Icons.delete_outline_rounded, color: Color(0xFFDC362E)),
+                                                  onPressed: () => context.read<EquipoFormProvider>().eliminarCampoDinamico(e.key),
+                                                  tooltip: 'Eliminar campo',
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        );
+                                      }).toList(),
+                                    );
                                   }
                                 ),
                               ],

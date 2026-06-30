@@ -45,6 +45,8 @@ class EquipoFormProvider extends ChangeNotifier {
   DateTime fechaVerificacion = DateTime.now();
   String observacion = '';
 
+  Map<String, String> camposDinamicos = {};
+
   XFile? fotoPlaca;
   XFile? fotoPlacaAdicional;
   XFile? fotoGeneral;
@@ -126,6 +128,34 @@ class EquipoFormProvider extends ChangeNotifier {
     });
   }
 
+  void agregarCampoDinamico(String clave, String valor) {
+    if (clave.trim().isNotEmpty) {
+      camposDinamicos = Map<String, String>.from(camposDinamicos)..[clave.trim()] = valor.trim();
+      notifyListeners();
+      
+      if (_debounceBorrador?.isActive ?? false) _debounceBorrador!.cancel();
+      _debounceBorrador = Timer(const Duration(milliseconds: 500), () => _guardarBorrador());
+    }
+  }
+
+  void actualizarCampoDinamico(String clave, String valor) {
+    if (camposDinamicos.containsKey(clave)) {
+      camposDinamicos = Map<String, String>.from(camposDinamicos)..[clave] = valor;
+      notifyListeners();
+      
+      if (_debounceBorrador?.isActive ?? false) _debounceBorrador!.cancel();
+      _debounceBorrador = Timer(const Duration(milliseconds: 500), () => _guardarBorrador());
+    }
+  }
+
+  void eliminarCampoDinamico(String clave) {
+    camposDinamicos = Map<String, String>.from(camposDinamicos)..remove(clave);
+    notifyListeners();
+    
+    if (_debounceBorrador?.isActive ?? false) _debounceBorrador!.cancel();
+    _debounceBorrador = Timer(const Duration(milliseconds: 500), () => _guardarBorrador());
+  }
+
   Future<void> capturarFoto(String tipo) async {
     try {
       final XFile? photo = await _picker.pickImage(
@@ -190,6 +220,7 @@ class EquipoFormProvider extends ChangeNotifier {
       'rangoUrv': rangoUrv,
       'unidadIngenieria': unidadIngenieria == 'Otro...' ? unidadPersonalizada : unidadIngenieria,
       'senalEntradaSalida': senalEntradaSalida,
+      'camposDinamicos': camposDinamicos,
       'supervisor': supervisor,
       'plan_tareas': planTareas,
       'fechaVerificacion': fechaVerificacion.toIso8601String(),
@@ -224,8 +255,7 @@ class EquipoFormProvider extends ChangeNotifier {
   }
 
   void cargarLevantamientoExistente(String docId, Map<String, dynamic> datos) async {
-    bool esModificacion = datos['tipo_operacion'] == 'modificacion' || datos['es_edicion'] == true;
-    idLevantamientoTemporal = (esModificacion && docId.isNotEmpty) ? docId : null;
+    idLevantamientoTemporal = docId.isNotEmpty ? docId : null;
     idTransaccionExistente = datos['id_transaccion'];
     
     codigo = datos['codigo'] ?? '';
@@ -244,6 +274,12 @@ class EquipoFormProvider extends ChangeNotifier {
     supervisor = datos['supervisor'] ?? '';
     planTareas = datos['plan_tareas'] ?? '';
     
+    if (datos['camposDinamicos'] != null) {
+      camposDinamicos = Map<String, String>.from(datos['camposDinamicos']);
+    } else {
+      camposDinamicos = {};
+    }
+
     final boxConfig = Hive.box('configuracion_cache');
     final listaFamilias = List<String>.from(boxConfig.get('familias', defaultValue: []));
     final listaMarcas = List<String>.from(boxConfig.get('marcas', defaultValue: []));
@@ -349,6 +385,7 @@ class EquipoFormProvider extends ChangeNotifier {
     unidadPersonalizada = '';
     
     senalEntradaSalida = '';
+    camposDinamicos = {};
     supervisor = '';
     planTareas = '';
     fechaVerificacion = DateTime.now();
@@ -396,6 +433,7 @@ class EquipoFormProvider extends ChangeNotifier {
       'unidadIngenieria': unidadIngenieria,
       'unidadPersonalizada': unidadPersonalizada,
       'senalEntradaSalida': senalEntradaSalida,
+      'camposDinamicos': camposDinamicos,
       'supervisor': supervisor,
       'planTareas': planTareas,
       'fechaVerificacion': fechaVerificacion.toIso8601String(),
@@ -434,6 +472,14 @@ class EquipoFormProvider extends ChangeNotifier {
       unidadIngenieria = _borrador.get('unidadIngenieria', defaultValue: '');
       unidadPersonalizada = _borrador.get('unidadPersonalizada', defaultValue: '');
       senalEntradaSalida = _borrador.get('senalEntradaSalida', defaultValue: '');
+      
+      final dynamicCampos = _borrador.get('camposDinamicos');
+      if (dynamicCampos != null) {
+        camposDinamicos = Map<String, String>.from(dynamicCampos);
+      } else {
+        camposDinamicos = {};
+      }
+
       supervisor = _borrador.get('supervisor', defaultValue: '');
       planTareas = _borrador.get('planTareas', defaultValue: '');
       uidCreadorExistente = _borrador.get('uidCreadorExistente');

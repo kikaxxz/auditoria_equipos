@@ -481,6 +481,11 @@ class DetalleEquipoPage extends StatelessWidget {
                                   datos['sincronizadoEn'] ?? 
                                   datos['actualizadoEn'] ?? 
                                   datos['ultima_modificacion'];
+                                  
+        // Extracción del diccionario dinámico
+        final Map<String, dynamic> camposDinamicos = datos['camposDinamicos'] != null 
+            ? Map<String, dynamic>.from(datos['camposDinamicos']) 
+            : {};
 
         return Scaffold(
           backgroundColor: _isaBackground,
@@ -585,6 +590,13 @@ class DetalleEquipoPage extends StatelessWidget {
                       _buildFilaDato(context, 'Rango URV', datos['rangoUrv']?.toString() ?? ''),
                       _buildFilaDato(context, 'Unidad', datos['unidadIngenieria'] ?? ''),
                     ]),
+                    
+                    // Renderizado Dinámico de los Campos Adicionales
+                    if (camposDinamicos.isNotEmpty)
+                      _buildSeccionTarjeta('Campos Personalizados', Icons.label_important_outline_rounded, 
+                        camposDinamicos.entries.map((e) => _buildFilaDato(context, e.key, e.value.toString())).toList()
+                      ),
+
                     _buildSeccionTarjeta('Estado y Registro', Icons.history_rounded, [
                       _buildFilaDato(context, 'Última Modificación', _formatearFecha(fechaModificacion)),
                       _buildFilaDato(context, 'Plan de Tareas', datos['plan_tareas'] ?? ''),
